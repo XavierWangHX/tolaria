@@ -1,0 +1,1461 @@
+import {
+  frontmatterFlag,
+  frontmatterList,
+  frontmatterProperties,
+  frontmatterRelationships,
+  frontmatterScalar,
+  parseLocalVaultDocument,
+  serializeLocalVaultFrontmatterKey,
+  serializeLocalVaultFrontmatterScalar,
+  type LocalVaultFrontmatter,
+  type LocalVaultFrontmatterScalar,
+  type LocalVaultFrontmatterValue,
+} from './localVaultFrontmatter'
+import {
+  deriveLocalVaultTitle,
+  localVaultEditorBlocks,
+  localVaultEditorBullets,
+  localVaultLinkCount,
+  localVaultOutgoingLinks,
+  localVaultSnippet,
+} from './localVaultMarkdown'
+import type {
+  MobileAllNotesFileVisibility,
+  MobileCreateNoteDefaults,
+  MobileNote,
+  MobilePropertyDisplayMode,
+  MobileNoteWidth,
+  MobileProperty,
+  MobilePropertyValue,
+  MobileRelationship,
+  MobileRelationshipValue,
+  MobileSavedView,
+  MobileTone,
+  MobileTypeDefinition,
+  MobileTypeDefinitions,
+  MobileViewDefinition,
+  MobileWorkspaceSnapshot,
+} from './mobileWorkspaceModel'
+import {
+  createMobileSavedViewFilename,
+  mobileSavedViewId,
+  mobileSavedViewOrderUpdates,
+  mobileSavedViewPath,
+  moveMobileSavedView,
+  nextMobileSavedViewOrder,
+  orderedMobileSavedViews,
+  serializeMobileSavedViewDefinition,
+  type MobileViewMoveDirection,
+} from './mobileSavedViews'
+import { buildMobileSidebarSections } from './mobileSidebarSections'
+import { mobileCreateNotePathTitle } from './mobileCreateNoteTitles'
+import { mobileCreateRelationshipTargetDefaults } from './mobileCreateNoteDefaults'
+import { isMobileInboxNote } from './mobileNoteFilters'
+import { normalizedMobileFolderPath } from './mobileWorkspaceFolders'
+import { applyMobileFolderEdit } from './mobileWorkspaceFolderEditing'
+import {
+  mobileFilenameStemForTitle,
+  uniqueMobileNotePath,
+  validateMobileMoveNoteFolderPath,
+  validateMobileRenameNoteFilePath,
+} from './mobileNotePaths'
+import {
+  movedNoteWikilinkRewrite,
+  noteWritePath,
+} from './mobileWorkspacePathRewrites'
+import {
+  movedWorkspaceNote,
+  moveNoteWrites,
+  moveWorkspaceNotes,
+  renamedWorkspaceNoteFile,
+} from './mobileWorkspaceNoteMoves'
+import {
+  mobileTypeDefinitionWikilinkWritesForWorkspaceWrites,
+  rewriteMobileTypeDefinitionWikilinks,
+} from './mobileTypeDefinitionPathRewrites'
+import { writeMobileFrontmatterValue } from './mobileFrontmatterWrites'
+import { normalizeMobileNoteWidth } from './mobileNoteWidth'
+import {
+  mobileRelationshipRefValue,
+  preservedMobileSourceFrontmatterMetadata,
+} from './mobileSourceFrontmatterMetadata'
+import { hasMobileSourceFrontmatterIssue } from './mobileSourceFrontmatterValidation'
+import {
+  mobileNoteForWikilinkTarget,
+  mobileWikilinkTargetForNote,
+  parseMobileWikilink,
+} from './mobileWikilinks'
+import {
+  mobileAllNotesFileVisibilityFromVaultConfig,
+  mobileDefaultNoteWidthFromVaultConfig,
+  mobileNoteListPropertyOverridesFromVaultConfig,
+  mobileVaultConfigWithDefaultNoteWidth,
+  mobileVaultConfigWithPrimaryNoteListProperties,
+} from './mobileVaultConfig'
+import { applyMobilePropertyDisplayModeEdit } from './mobilePropertyDisplayModeEditing'
+import type { MobileTypeDefinitionPatch } from './mobileTypeDefinitions'
+import { applyMobileTypeEdit } from './mobileWorkspaceTypeEditing'
+import { applyMobileRestorationEdit } from './mobileWorkspaceRestoration'
+import { moveMobileFavorite } from './mobileWorkspaceFavoriteOrdering'
+import {
+  selectedMobileEditorBlocks,
+  selectedMobileEditorBullets,
+} from './mobileSelectedEditorFallback'
+import {
+  applyMobileTextFileContentEdit,
+  canApplyMobileMarkdownEdit,
+  isMobileTextFileContentEdit,
+  mobileTextFileNoteWithContent,
+} from './mobileTextFileEditing'
+import {
+  relationshipFrontmatterKey as sharedRelationshipFrontmatterKey,
+  relationshipKindForKey,
+} from '../../../../src/utils/relationshipKeys'
+
+type EditableNoteInput = MobileNote & { rawContent: string }
+type FrontmatterKey = string
+type MarkdownContent = string
+type TextFileContent = string
+type NoteId = string
+type NoteTitle = string
+type FolderPath = string
+type FilenameStem = string
+type WikilinkRef = string
+type WikilinkTarget = string
+
+export type MobileWorkspaceEdit =
+  | { edits: MobileWorkspaceEdit[]; type: 'bulkEdit' }
+  | { content: MarkdownContent; noteId: NoteId; type: 'updateNoteContent' }
+  | { content: TextFileContent; noteId: NoteId; type: 'updateTextFileContent' }
+  | { defaults?: MobileCreateNoteDefaults; title: NoteTitle; type: 'createNote' }
+  | { noteId: NoteId; type: 'deleteNote' }
+  | { allNoteIndex?: number; note: MobileNote; noteIndex?: number; type: 'restoreNote' }
+  | { noteId: NoteId; rawContent: MarkdownContent; type: 'hydrateNoteContent' }
+  | { noteId: NoteId; rawContent: TextFileContent; type: 'hydrateTextFileContent' }
+  | { key: FrontmatterKey; noteId: NoteId; value: MobilePropertyValue; type: 'updateProperty' }
+  | { key: FrontmatterKey; noteId: NoteId; type: 'deleteProperty' }
+  | { key: FrontmatterKey; noteId: NoteId; targetRef?: WikilinkRef; targetTitle: NoteTitle; type: 'addRelationship' }
+  | { defaults?: MobileCreateNoteDefaults; key: FrontmatterKey; sourceNoteId: NoteId; targetRef?: WikilinkRef; targetTitle: NoteTitle; type: 'createRelationshipTarget' }
+  | { key: FrontmatterKey; noteId: NoteId; ref: WikilinkRef; type: 'removeRelationship' }
+  | { noteId: NoteId; type: 'changeNoteType'; value: NoteTitle }
+  | { folderPath: FolderPath; noteId: NoteId; type: 'moveNoteToFolder' }
+  | { filenameStem: FilenameStem; noteId: NoteId; type: 'renameNoteFile' }
+  | { name: string; parentPath?: FolderPath; type: 'createFolder' }
+  | { folderPath: FolderPath; name: string; type: 'renameFolder' }
+  | { folderPath: FolderPath; type: 'deleteFolder' }
+  | { path: FolderPath; type: 'restoreFolder' }
+  | { noteId: NoteId; type: 'toggleFavorite' }
+  | { direction: MobileViewMoveDirection; noteId: NoteId; type: 'moveFavorite' }
+  | { archived: boolean; noteId: NoteId; type: 'setArchived' }
+  | { noteId: NoteId; organized: boolean; type: 'setOrganized' }
+  | { mode: MobileNoteWidth; type: 'setDefaultNoteWidth' }
+  | { definition: MobileViewDefinition; type: 'createView' }
+  | { definition: MobileViewDefinition; viewId: string; type: 'updateView' }
+  | { viewId: string; type: 'deleteView' }
+  | { view: MobileSavedView; viewIndex?: number; type: 'restoreView' }
+  | { direction: MobileViewMoveDirection; viewId: string; type: 'moveView' }
+  | { allNotesFileVisibility?: MobileAllNotesFileVisibility; listPropertiesDisplay: string[]; target: 'allNotes' | 'inbox'; type: 'updatePrimaryNoteListProperties' }
+  | { key: FrontmatterKey; mode: MobilePropertyDisplayMode | null; type: 'updatePropertyDisplayMode' }
+  | { direction: MobileViewMoveDirection; type: 'moveTypeSection'; typeName: NoteTitle }
+  | { type: 'createTypeDefinition'; typeName: NoteTitle }
+  | { type: 'deleteTypeDefinition'; typeName: NoteTitle }
+  | { nextTypeName: NoteTitle; type: 'renameTypeDefinition'; typeName: NoteTitle }
+  | { definition: MobileTypeDefinition; type: 'restoreTypeDefinition'; typeName: NoteTitle }
+  | { patch: MobileTypeDefinitionPatch; type: 'updateTypeDefinition'; typeName: NoteTitle }
+type MobileViewEdit = Extract<MobileWorkspaceEdit, { type: 'createView' | 'deleteView' | 'moveView' | 'updateView' }>
+type MobileTypeEdit = Extract<MobileWorkspaceEdit, { type: 'createTypeDefinition' | 'deleteTypeDefinition' | 'moveTypeSection' | 'renameTypeDefinition' | 'updateTypeDefinition' }>
+type MobileFolderEdit = Extract<MobileWorkspaceEdit, { type: 'createFolder' | 'deleteFolder' | 'renameFolder' }>
+type MobileFavoriteEdit = Extract<MobileWorkspaceEdit, { type: 'moveFavorite' }>
+type MobileVaultConfigEdit = Extract<MobileWorkspaceEdit, { type: 'setDefaultNoteWidth' | 'updatePrimaryNoteListProperties' | 'updatePropertyDisplayMode' }>
+type MobileRestorationEdit = Extract<MobileWorkspaceEdit, { type: 'restoreFolder' | 'restoreNote' | 'restoreTypeDefinition' | 'restoreView' }>
+type MobileSnapshotEdit = Extract<MobileWorkspaceEdit, { type: 'createRelationshipTarget' | 'deleteNote' | 'moveNoteToFolder' | 'renameNoteFile' }>
+type MobileNoteEdit = Exclude<MobileWorkspaceEdit, MobileFavoriteEdit | MobileFolderEdit | MobileRestorationEdit | MobileSnapshotEdit | MobileTypeEdit | MobileVaultConfigEdit | MobileViewEdit | { type: 'bulkEdit' | 'createNote' }>
+type MobileWorkspaceResultHandlerMap = {
+  [Type in MobileWorkspaceEdit['type']]?: (
+    snapshot: MobileWorkspaceSnapshot,
+    edit: Extract<MobileWorkspaceEdit, { type: Type }>,
+  ) => MobileWorkspaceEditResult
+}
+
+export type MobileWorkspaceWrite =
+  | { content: MarkdownContent; kind: 'createNote'; path: string }
+  | { kind: 'createFolder'; path: string }
+  | { kind: 'deleteFolder'; path: string }
+  | { kind: 'deleteNote'; path: string }
+  | { kind: 'moveNote'; path: string; toPath: string }
+  | { kind: 'renameFolder'; path: string; toPath: string }
+  | { content: MarkdownContent; kind: 'saveNote'; path: string }
+  | { content: MarkdownContent; kind: 'saveView'; path: string }
+  | { config: MobileWorkspaceSnapshot['vaultConfig']; kind: 'saveVaultConfig' }
+  | { kind: 'deleteView'; path: string }
+
+export { normalizedDisplayProperties } from './mobileVaultConfig'
+
+export type MobileWorkspaceEditResult = {
+  snapshot: MobileWorkspaceSnapshot
+  writes: MobileWorkspaceWrite[]
+}
+
+type DerivedNote = {
+  note: MobileNote
+  rawRelationships: Record<string, WikilinkRef[]>
+}
+
+type MobileNoteEditContext = {
+  editableNote: EditableNoteInput
+  note: MobileNote
+  notes: MobileNote[]
+  typeDefinitions?: MobileTypeDefinitions
+}
+type TitlePropertyUpdateEdit = Extract<MobileWorkspaceEdit, { type: 'updateProperty' }> & { value: string }
+type AddRelationshipInput = {
+  key: FrontmatterKey
+  note: EditableNoteInput
+  notes: MobileNote[]
+  targetRef?: WikilinkRef
+  targetTitle: NoteTitle
+}
+type MobileNoteEditHandler = (context: MobileNoteEditContext, edit: MobileNoteEdit) => MobileNote
+
+const mobileNoteEditHandlers: Record<MobileNoteEdit['type'], MobileNoteEditHandler> = {
+  addRelationship: ({ editableNote, notes }, edit) => {
+    if (edit.type !== 'addRelationship') return editableNote
+    return addRelationship({
+      key: edit.key,
+      note: editableNote,
+      notes,
+      targetRef: edit.targetRef,
+      targetTitle: edit.targetTitle,
+    })
+  },
+  changeNoteType: ({ editableNote, typeDefinitions }, edit) => {
+    if (edit.type !== 'changeNoteType') return editableNote
+    return changeNoteType(editableNote, edit.value, typeDefinitions)
+  },
+  deleteProperty: ({ editableNote, typeDefinitions }, edit) => {
+    if (edit.type !== 'deleteProperty') return editableNote
+    return deriveEditedNote(editableNote, writeFrontmatterValue(editableNote.rawContent, edit.key, null), typeDefinitions)
+  },
+  hydrateNoteContent: ({ editableNote, typeDefinitions }, edit) => {
+    if (edit.type !== 'hydrateNoteContent') return editableNote
+    return deriveEditedNote(editableNote, edit.rawContent, typeDefinitions)
+  },
+  hydrateTextFileContent: ({ note }, edit) => {
+    if (edit.type !== 'hydrateTextFileContent') return note
+    return mobileTextFileNoteWithContent(note, edit.rawContent)
+  },
+  removeRelationship: ({ editableNote }, edit) => {
+    if (edit.type !== 'removeRelationship') return editableNote
+    return removeRelationship(editableNote, edit.key, edit.ref)
+  },
+  setArchived: ({ editableNote, typeDefinitions }, edit) => {
+    if (edit.type !== 'setArchived') return editableNote
+    return deriveEditedNote(editableNote, writeFrontmatterValue(editableNote.rawContent, '_archived', edit.archived), typeDefinitions)
+  },
+  setOrganized: ({ editableNote, typeDefinitions }, edit) => {
+    if (edit.type !== 'setOrganized') return editableNote
+    return deriveEditedNote(editableNote, writeFrontmatterValue(editableNote.rawContent, '_organized', edit.organized), typeDefinitions)
+  },
+  toggleFavorite: ({ editableNote, note, notes, typeDefinitions }, edit) => {
+    if (edit.type !== 'toggleFavorite') return editableNote
+    return toggleFavorite(editableNote, note, notes, typeDefinitions)
+  },
+  updateNoteContent: ({ editableNote, typeDefinitions }, edit) => {
+    if (edit.type !== 'updateNoteContent') return editableNote
+    return deriveEditedNote(editableNote, edit.content, typeDefinitions)
+  },
+  updateProperty: ({ editableNote, typeDefinitions }, edit) => {
+    if (edit.type !== 'updateProperty') return editableNote
+    return deriveEditedNote(editableNote, writeFrontmatterValue(editableNote.rawContent, edit.key, edit.value), typeDefinitions)
+  },
+  updateTextFileContent: ({ note }, edit) => {
+    if (edit.type !== 'updateTextFileContent') return note
+    return mobileTextFileNoteWithContent(note, edit.content)
+  },
+}
+
+const mobileWorkspaceResultHandlers: MobileWorkspaceResultHandlerMap = {
+  bulkEdit: (snapshot, edit) => applyMobileBulkWorkspaceEdit(snapshot, edit),
+  createFolder: (snapshot, edit) => applyMobileFolderEdit(snapshot, edit, rebuildSnapshot),
+  createNote: (snapshot, edit) => createMobileNoteResult(snapshot, edit.title, edit.defaults),
+  createRelationshipTarget: (snapshot, edit) => createRelationshipTarget(snapshot, edit),
+  createTypeDefinition: (snapshot, edit) => applyMobileTypeEdit(snapshot, edit, rebuildSnapshot),
+  deleteFolder: (snapshot, edit) => applyMobileFolderEdit(snapshot, edit, rebuildSnapshot),
+  createView: (snapshot, edit) => createMobileView(snapshot, edit.definition),
+  deleteNote: (snapshot, edit) => deleteMobileNote(snapshot, edit.noteId),
+  deleteTypeDefinition: (snapshot, edit) => applyMobileTypeEdit(snapshot, edit, rebuildSnapshot),
+  deleteView: (snapshot, edit) => deleteMobileView(snapshot, edit.viewId),
+  moveFavorite: (snapshot, edit) => moveMobileFavorite({
+    direction: edit.direction,
+    noteId: edit.noteId,
+    rebuildSnapshot,
+    snapshot,
+  }),
+  moveView: (snapshot, edit) => moveMobileView(snapshot, edit.viewId, edit.direction),
+  moveTypeSection: (snapshot, edit) => applyMobileTypeEdit(snapshot, edit, rebuildSnapshot),
+  moveNoteToFolder: (snapshot, edit) => moveNoteToFolder(snapshot, edit),
+  renameTypeDefinition: (snapshot, edit) => applyMobileTypeEdit(snapshot, edit, rebuildSnapshot),
+  renameFolder: (snapshot, edit) => applyMobileFolderEdit(snapshot, edit, rebuildSnapshot),
+  renameNoteFile: (snapshot, edit) => renameNoteFile(snapshot, edit),
+  restoreFolder: (snapshot, edit) => applyMobileRestorationEdit(snapshot, edit, rebuildSnapshot),
+  restoreNote: (snapshot, edit) => applyMobileRestorationEdit(snapshot, edit, rebuildSnapshot),
+  restoreTypeDefinition: (snapshot, edit) => applyMobileRestorationEdit(snapshot, edit, rebuildSnapshot),
+  restoreView: (snapshot, edit) => applyMobileRestorationEdit(snapshot, edit, rebuildSnapshot),
+  setDefaultNoteWidth: (snapshot, edit) => setDefaultNoteWidth(snapshot, edit.mode),
+  updatePropertyDisplayMode: applyMobilePropertyDisplayModeEdit,
+  updatePrimaryNoteListProperties: (snapshot, edit) => updatePrimaryNoteListProperties(snapshot, edit),
+  updateTypeDefinition: (snapshot, edit) => applyMobileTypeEdit(snapshot, edit, rebuildSnapshot),
+  updateProperty: (snapshot, edit) => updateMobileNoteProperty(snapshot, edit),
+  updateView: (snapshot, edit) => updateMobileView(snapshot, edit.viewId, edit.definition),
+}
+
+const mobileNoteEditTypes = new Set<MobileWorkspaceEdit['type']>([
+  'addRelationship',
+  'changeNoteType',
+  'deleteProperty',
+  'hydrateNoteContent',
+  'hydrateTextFileContent',
+  'removeRelationship',
+  'setArchived',
+  'setOrganized',
+  'toggleFavorite',
+  'updateNoteContent',
+  'updateProperty',
+  'updateTextFileContent',
+])
+
+export function applyMobileWorkspaceEdit(
+  snapshot: MobileWorkspaceSnapshot,
+  edit: MobileWorkspaceEdit,
+): MobileWorkspaceSnapshot {
+  return applyMobileWorkspaceEditWithWrites(snapshot, edit).snapshot
+}
+
+export function applyMobileWorkspaceEditWithWrites(
+  snapshot: MobileWorkspaceSnapshot,
+  edit: MobileWorkspaceEdit,
+): MobileWorkspaceEditResult {
+  const handledResult = applyMobileWorkspaceResultHandler(snapshot, edit)
+  if (handledResult) return handledResult
+  if (!isMobileNoteEdit(edit)) return { snapshot, writes: [] }
+
+  return applyMobileNoteEditResult(snapshot, edit)
+}
+
+function applyMobileBulkWorkspaceEdit(
+  snapshot: MobileWorkspaceSnapshot,
+  edit: Extract<MobileWorkspaceEdit, { type: 'bulkEdit' }>,
+): MobileWorkspaceEditResult {
+  return edit.edits.reduce<MobileWorkspaceEditResult>((result, childEdit) => {
+    const nextResult = applyMobileWorkspaceEditWithWrites(result.snapshot, childEdit)
+    return {
+      snapshot: nextResult.snapshot,
+      writes: [...result.writes, ...nextResult.writes],
+    }
+  }, { snapshot, writes: [] })
+}
+
+function applyMobileNoteEditResult(
+  snapshot: MobileWorkspaceSnapshot,
+  edit: MobileNoteEdit,
+): MobileWorkspaceEditResult {
+  const notePool = workspaceNotePool(snapshot)
+  const notes = snapshot.notes.map((note) => applyMobileNoteEdit(note, notePool, edit, snapshot.typeDefinitions))
+  const allNotes = snapshot.allNotes?.map((note) => applyMobileNoteEdit(note, notePool, edit, snapshot.typeDefinitions))
+  const nextSnapshot = rebuildSnapshot({ ...snapshot, allNotes, notes }, notes, allNotes)
+
+  return {
+    snapshot: nextSnapshot,
+    writes: saveNoteWrites(snapshot, nextSnapshot, edit),
+  }
+}
+
+function updateMobileNoteProperty(
+  snapshot: MobileWorkspaceSnapshot,
+  edit: Extract<MobileWorkspaceEdit, { type: 'updateProperty' }>,
+): MobileWorkspaceEditResult {
+  const result = applyMobileNoteEditResult(snapshot, edit)
+  if (!isTitlePropertyUpdate(edit)) return result
+
+  return renameNoteFileAfterTitlePropertyUpdate(snapshot, result, edit)
+}
+
+function renameNoteFileAfterTitlePropertyUpdate(
+  previousSnapshot: MobileWorkspaceSnapshot,
+  result: MobileWorkspaceEditResult,
+  edit: TitlePropertyUpdateEdit,
+): MobileWorkspaceEditResult {
+  const previousNote = workspaceNoteById(previousSnapshot, edit.noteId)
+  const nextNote = workspaceNoteById(result.snapshot, edit.noteId)
+  if (!previousNote || !nextNote?.rawContent) return result
+
+  const filenameStem = mobileFilenameStemForTitle(edit.value)
+  const validation = validateMobileRenameNoteFilePath({
+    filenameStem,
+    note: nextNote,
+    notes: workspaceNotePool(previousSnapshot),
+  })
+  if (validation !== 'ok') return result
+
+  const movedNoteResult = moveNoteToPath(
+    result.snapshot,
+    previousNote,
+    renamedWorkspaceNoteFile(nextNote, filenameStem),
+  )
+
+  return {
+    snapshot: movedNoteResult.snapshot,
+    writes: [...result.writes, ...movedNoteResult.writes],
+  }
+}
+
+function isTitlePropertyUpdate(
+  edit: Extract<MobileWorkspaceEdit, { type: 'updateProperty' }>,
+): edit is TitlePropertyUpdateEdit {
+  return normalizedFrontmatterKey(edit.key) === 'title'
+    && typeof edit.value === 'string'
+    && edit.value.trim().length > 0
+}
+
+function isMobileNoteEdit(edit: MobileWorkspaceEdit): edit is MobileNoteEdit {
+  return mobileNoteEditTypes.has(edit.type)
+}
+
+function applyMobileWorkspaceResultHandler(
+  snapshot: MobileWorkspaceSnapshot,
+  edit: MobileWorkspaceEdit,
+): MobileWorkspaceEditResult | null {
+  const handler = mobileWorkspaceResultHandlers[edit.type] as
+    | ((snapshot: MobileWorkspaceSnapshot, edit: MobileWorkspaceEdit) => MobileWorkspaceEditResult)
+    | undefined
+  return handler?.(snapshot, edit) ?? null
+}
+
+export function mobileWikilinkSuggestions(notes: MobileNote[], query: string): MobileNote[] {
+  const normalizedQuery = query.trim().toLowerCase()
+  const activeNotes = notes.filter((note) => !note.archived)
+
+  if (!normalizedQuery) {
+    return activeNotes.slice(0, 8)
+  }
+
+  return activeNotes
+    .filter((note) => wikilinkSearchText(note).includes(normalizedQuery))
+    .slice(0, 8)
+}
+
+export function replaceTrailingWikilinkQuery(
+  content: MarkdownContent,
+  query: string,
+  selectedNote: MobileNote,
+): MarkdownContent {
+  const target = mobileWikilinkTargetForNote(selectedNote)
+  const replacement = `[[${target}]]`
+  const pattern = new RegExp(`\\[\\[${escapeRegExp(query)}$`)
+  if (pattern.test(content)) return content.replace(pattern, replacement)
+  return `${content}${replacement}`
+}
+
+export function trailingWikilinkQuery(content: MarkdownContent): string | null {
+  const match = content.match(/\[\[([^\]\n]*)$/)
+  return match ? match[1] : null
+}
+
+function createMobileNote(
+  snapshot: MobileWorkspaceSnapshot,
+  title: NoteTitle,
+  defaults: MobileCreateNoteDefaults = {},
+): MobileWorkspaceSnapshot {
+  const trimmedTitle = title.trim()
+
+  const notePool = workspaceNotePool(snapshot)
+  const type = cleanTypeName(defaults.type ?? 'Note') || 'Note'
+  const now = Date.now()
+  const pathTitle = mobileCreateNotePathTitle({ now, title: trimmedTitle, type })
+  const basePath = createNotePath(pathTitle, defaults.folderPath)
+  const id = uniqueMobileNotePath(notePool, basePath)
+  if (id !== basePath && trimmedTitle) return snapshot
+
+  const rawContent = createNoteRawContent(trimmedTitle, type, defaults)
+  const note = deriveEditableNote({
+    fallback: {
+      created: '0m ago',
+      date: absoluteDate(now),
+      favorite: defaults.favorite === true,
+      id,
+      icon: null,
+      links: 0,
+      modified: '0m ago',
+      outgoingLinks: [],
+      path: id,
+      rawContent,
+      relationships: [],
+      status: defaults.status ?? '',
+      snippet: '',
+      tags: defaults.tags ?? [],
+      title: pathTitle,
+      type,
+      typeTone: 'gray',
+      workspace: snapshot.source?.label ?? 'Tolaria Vault',
+      workspaceAlias: snapshot.source?.kind === 'localVault'
+        ? snapshot.source.alias ?? snapshot.notes[0]?.workspaceAlias ?? null
+        : null,
+    },
+    rawContent,
+    typeDefinitions: snapshot.typeDefinitions,
+  }).note
+
+  return rebuildSnapshot(
+    { ...snapshot, selectedNoteId: id },
+    [note, ...snapshot.notes],
+    [note, ...notePool],
+  )
+}
+
+function createMobileNoteResult(
+  snapshot: MobileWorkspaceSnapshot,
+  title: NoteTitle,
+  defaults?: MobileCreateNoteDefaults,
+): MobileWorkspaceEditResult {
+  const nextSnapshot = createMobileNote(snapshot, title, defaults)
+  if (nextSnapshot === snapshot) return { snapshot, writes: [] }
+  return { snapshot: nextSnapshot, writes: createNoteWrites(nextSnapshot) }
+}
+
+function createNotePath(title: NoteTitle, folderPath: FolderPath | undefined): NoteId {
+  const filename = `${slugifyTitle(title)}.md`
+  const folder = folderPath ? normalizedMobileFolderPath(folderPath) : ''
+  return folder ? `${folder}/${filename}` : filename
+}
+
+function createNoteRawContent(
+  title: NoteTitle,
+  type: NoteTitle,
+  defaults: MobileCreateNoteDefaults,
+): MarkdownContent {
+  return serializeDocument(createNoteFrontmatter(title, type, defaults), createNoteBody(title, defaults.template))
+}
+
+function createNoteBody(title: NoteTitle, template?: MarkdownContent): MarkdownContent {
+  if (title) return template ? `\n${template}` : ''
+  if (template?.trimStart().startsWith('# ') ?? false) return `\n${template}`
+  return template ? `\n# \n\n${template}` : '\n# \n\n'
+}
+
+function createNoteFrontmatter(
+  title: NoteTitle,
+  type: NoteTitle,
+  defaults: MobileCreateNoteDefaults,
+): LocalVaultFrontmatter {
+  const frontmatter: LocalVaultFrontmatter = {}
+
+  addFrontmatterValue(frontmatter, 'title', title)
+  addFrontmatterValue(frontmatter, 'type', type)
+  addFrontmatterValue(frontmatter, 'status', defaults.status)
+  addFrontmatterValue(frontmatter, 'tags', defaults.tags && defaults.tags.length > 0 ? defaults.tags : undefined)
+  addFrontmatterValue(frontmatter, '_favorite', defaults.favorite === true ? true : undefined)
+  addFrontmatterValue(frontmatter, '_archived', defaults.archived === true ? true : undefined)
+  addFrontmatterValue(frontmatter, '_organized', defaults.organized === true ? true : undefined)
+  mergeFrontmatter(frontmatter, defaults.properties ?? {})
+  mergeRelationshipDefaultFrontmatter(frontmatter, defaults.relationships ?? {})
+
+  return frontmatter
+}
+
+function mergeRelationshipDefaultFrontmatter(
+  frontmatter: LocalVaultFrontmatter,
+  relationships: Record<FrontmatterKey, WikilinkRef[]>,
+) {
+  for (const [key, refs] of Object.entries(relationships)) {
+    const value = refs.length === 0 ? undefined : refs.length === 1 ? refs[0] : refs
+    addFrontmatterValue(frontmatter, key, value)
+  }
+}
+
+function applyMobileNoteEdit(
+  note: MobileNote,
+  notes: MobileNote[],
+  edit: MobileNoteEdit,
+  typeDefinitions?: MobileTypeDefinitions,
+): MobileNote {
+  if (note.id !== edit.noteId) return note
+  if (isMobileTextFileContentEdit(edit)) return applyMobileTextFileContentEdit(note, edit)
+  if (!canApplyMobileMarkdownEdit(note)) return note
+
+  const editableNote = withEditableContent(note)
+  return mobileNoteEditHandlers[edit.type]({ editableNote, note, notes, typeDefinitions }, edit)
+}
+
+function addRelationship({
+  key,
+  note,
+  notes,
+  targetRef,
+  targetTitle,
+}: AddRelationshipInput): MobileNote {
+  const trimmedKey = key.trim()
+  const trimmedTitle = targetTitle.trim()
+  if (!trimmedKey || !trimmedTitle) return note
+
+  const ref = normalizedRelationshipRef(targetRef) ?? relationshipRefForTitle(trimmedTitle, notes, note)
+  return addRelationshipRef(note, trimmedKey, ref)
+}
+
+function addRelationshipRef(
+  note: EditableNoteInput,
+  key: FrontmatterKey,
+  ref: WikilinkRef,
+  typeDefinitions?: MobileTypeDefinitions,
+): MobileNote {
+  const document = parseLocalVaultDocument(note.rawContent)
+  const relationships = frontmatterRelationships(document.frontmatter)
+  const [writeKey, currentRefs] = relationshipEntryForKey(relationships, key)
+  const nextRefs = currentRefs.includes(ref) ? currentRefs : [...currentRefs, ref]
+
+  return deriveEditableNote({
+    fallback: note,
+    rawContent: writeFrontmatterValue(note.rawContent, writeKey, nextRefs),
+    typeDefinitions,
+  }).note
+}
+
+function relationshipEntryForKey(
+  relationships: Record<FrontmatterKey, WikilinkRef[]>,
+  key: FrontmatterKey,
+): [FrontmatterKey, WikilinkRef[]] {
+  const normalizedKey = normalizedFrontmatterKey(key)
+  return Object.entries(relationships).find(([candidateKey]) => (
+    normalizedFrontmatterKey(candidateKey) === normalizedKey
+  )) ?? [key, []]
+}
+
+function removeRelationship(
+  note: EditableNoteInput,
+  key: FrontmatterKey,
+  ref: WikilinkRef,
+): MobileNote {
+  const document = parseLocalVaultDocument(note.rawContent)
+  const relationships = frontmatterRelationships(document.frontmatter)
+  const [writeKey, currentRefs] = relationshipEntryForKey(relationships, key)
+  const nextRefs = currentRefs.filter((candidate) => candidate !== ref)
+
+  return deriveEditableNote({
+    fallback: note,
+    rawContent: writeFrontmatterValue(note.rawContent, writeKey, nextRefs.length > 0 ? nextRefs : null),
+  }).note
+}
+
+function changeNoteType(
+  note: EditableNoteInput,
+  value: NoteTitle,
+  typeDefinitions?: MobileTypeDefinitions,
+): MobileNote {
+  const nextType = value.trim()
+  if (!nextType || nextType === note.type) return note
+
+  return deriveEditedNote(note, writeFrontmatterValue(note.rawContent, 'type', nextType), typeDefinitions)
+}
+
+function toggleFavorite(
+  note: EditableNoteInput,
+  currentNote: MobileNote,
+  notes: MobileNote[],
+  typeDefinitions?: MobileTypeDefinitions,
+): MobileNote {
+  if (currentNote.favorite) {
+    const withoutFavorite = writeFrontmatterValue(note.rawContent, '_favorite', null)
+    return deriveEditedNote(note, writeFrontmatterValue(withoutFavorite, '_favorite_index', null), typeDefinitions)
+  }
+
+  const withFavorite = writeFrontmatterValue(note.rawContent, '_favorite', true)
+  return deriveEditedNote(note, writeFrontmatterValue(withFavorite, '_favorite_index', nextFavoriteIndex(notes)), typeDefinitions)
+}
+
+function nextFavoriteIndex(notes: MobileNote[]): number {
+  return notes
+    .filter((candidate) => candidate.favorite)
+    .reduce((max, candidate) => Math.max(max, candidate.favoriteIndex ?? 0), 0) + 1
+}
+
+function deleteMobileNote(snapshot: MobileWorkspaceSnapshot, noteId: NoteId): MobileWorkspaceEditResult {
+  const previousNote = workspaceNoteById(snapshot, noteId)
+  if (!previousNote) return { snapshot, writes: [] }
+
+  const notes = snapshot.notes.filter((note) => note.id !== previousNote.id)
+  const allNotes = snapshot.allNotes?.filter((note) => note.id !== previousNote.id)
+  const nextSnapshot = rebuildSnapshot({ ...snapshot, allNotes }, notes, allNotes)
+
+  return {
+    snapshot: nextSnapshot,
+    writes: [{ kind: 'deleteNote', path: noteWritePath(previousNote) }],
+  }
+}
+
+function moveNoteToFolder(
+  snapshot: MobileWorkspaceSnapshot,
+  edit: Extract<MobileWorkspaceEdit, { type: 'moveNoteToFolder' }>,
+): MobileWorkspaceEditResult {
+  const previousNote = workspaceNoteById(snapshot, edit.noteId)
+  if (!previousNote) return { snapshot, writes: [] }
+  if (validateMobileMoveNoteFolderPath({
+    folderPath: edit.folderPath,
+    folderPaths: snapshot.folderPaths,
+    note: previousNote,
+    notes: workspaceNotePool(snapshot),
+  }) !== 'ok') return { snapshot, writes: [] }
+
+  return moveNoteToPath(snapshot, previousNote, movedWorkspaceNote(previousNote, edit.folderPath))
+}
+
+function renameNoteFile(
+  snapshot: MobileWorkspaceSnapshot,
+  edit: Extract<MobileWorkspaceEdit, { type: 'renameNoteFile' }>,
+): MobileWorkspaceEditResult {
+  const previousNote = workspaceNoteById(snapshot, edit.noteId)
+  if (!previousNote) return { snapshot, writes: [] }
+  if (validateMobileRenameNoteFilePath({
+    filenameStem: edit.filenameStem,
+    note: previousNote,
+    notes: workspaceNotePool(snapshot),
+  }) !== 'ok') return { snapshot, writes: [] }
+
+  return moveNoteToPath(snapshot, previousNote, renamedWorkspaceNoteFile(previousNote, edit.filenameStem))
+}
+
+function moveNoteToPath(
+  snapshot: MobileWorkspaceSnapshot,
+  previousNote: MobileNote,
+  nextNote: MobileNote,
+): MobileWorkspaceEditResult {
+  const previousPool = snapshot.allNotes
+    ? notesWithDetailedNotes(snapshot.allNotes, snapshot.notes)
+    : snapshot.notes
+  const nextPath = noteWritePath(nextNote)
+  if (noteWritePath(previousNote) === nextPath) return { snapshot, writes: [] }
+
+  const rewrite = movedNoteWikilinkRewrite(previousNote, nextNote)
+  const nextPool = moveWorkspaceNotes(previousPool, previousNote, nextNote, rewrite)
+  const nextNotes = moveWorkspaceNotes(snapshot.notes, previousNote, nextNote, rewrite)
+  const nextAllNotes = snapshot.allNotes ? nextPool : undefined
+  const nextSelectedNoteId = snapshot.selectedNoteId === previousNote.id ? nextNote.id : snapshot.selectedNoteId
+  const nextTypeDefinitions = rewriteMobileTypeDefinitionWikilinks(snapshot.typeDefinitions, [rewrite])
+  const nextSnapshot = rebuildSnapshot(
+    { ...snapshot, allNotes: nextAllNotes, selectedNoteId: nextSelectedNoteId, typeDefinitions: nextTypeDefinitions },
+    nextNotes,
+    nextAllNotes,
+  )
+  const writes = moveNoteWrites(previousNote, nextNote, previousPool, nextPool)
+
+  return {
+    snapshot: nextSnapshot,
+    writes: [
+      ...writes,
+      ...mobileTypeDefinitionWikilinkWritesForWorkspaceWrites(
+        snapshot.typeDefinitions,
+        nextTypeDefinitions,
+        writes,
+      ),
+    ],
+  }
+}
+
+function rebuildSnapshot(
+  snapshot: MobileWorkspaceSnapshot,
+  notes: MobileNote[],
+  allNotes = notes,
+): MobileWorkspaceSnapshot {
+  const derivableAllNotes = snapshot.allNotes ? notesWithDetailedNotes(allNotes, notes) : allNotes
+  const derivedById = new Map(
+    derivableAllNotes
+      .map((note) => [note.id, deriveMobileNote(note, snapshot.typeDefinitions)] as const)
+      .filter((entry): entry is readonly [NoteId, DerivedNote] => entry[1] !== null),
+  )
+  const relationshipTargets = derivableAllNotes.map((note) => derivedById.get(note.id)?.note ?? note)
+  const resolvedAllNotes = derivableAllNotes.map((note) => {
+    const derived = derivedById.get(note.id)
+    if (!derived) return note
+
+    return {
+      ...derived.note,
+      relationships: mobileRelationships(derived.rawRelationships, relationshipTargets),
+    }
+  })
+  const resolvedNoteById = new Map(resolvedAllNotes.map((note) => [note.id, note]))
+  const resolvedNotes = notes.map((note) => resolvedNoteById.get(note.id) ?? note)
+  const selectedNote = resolvedNotes.find((note) => note.id === snapshot.selectedNoteId) ?? resolvedNotes[0] ?? null
+
+  return {
+    ...snapshot,
+    allNotes: snapshot.allNotes ? resolvedAllNotes : undefined,
+    editorBlocks: selectedMobileEditorBlocks(selectedNote, snapshot.editorBlocks),
+    editorBullets: selectedMobileEditorBullets(selectedNote, snapshot.editorBullets),
+    noteListSubtitle: noteListSubtitle(resolvedNotes),
+    notes: resolvedNotes,
+    selectedNoteId: selectedNote?.id,
+    sidebarSections: buildMobileSidebarSections({
+      allNotesFileVisibility: mobileAllNotesFileVisibilityFromVaultConfig(snapshot.vaultConfig),
+      folderPaths: snapshot.folderPaths,
+      notes: resolvedAllNotes,
+      previousSections: snapshot.sidebarSections,
+      typeDefinitions: snapshot.typeDefinitions,
+      views: snapshot.views,
+    }),
+  }
+}
+
+function notesWithDetailedNotes(notes: MobileNote[], detailedNotes: MobileNote[]): MobileNote[] {
+  const detailedById = new Map(detailedNotes.map((note) => [note.id, note]))
+  return notes.map((note) => detailedById.get(note.id) ?? note)
+}
+
+function deriveMobileNote(note: MobileNote, typeDefinitions?: MobileTypeDefinitions): DerivedNote | null {
+  if (note.rawContent === undefined) return null
+  if (note.fileKind === 'text') {
+    return {
+      note: mobileTextFileNoteWithContent(note, note.rawContent),
+      rawRelationships: {},
+    }
+  }
+  if (!canApplyMobileMarkdownEdit(note)) return null
+
+  const editable = withEditableContent(note)
+  if (hasMobileSourceFrontmatterIssue(editable.rawContent)) {
+    return preservedMobileSourceFrontmatterMetadata(editable)
+  }
+
+  return deriveEditableNote({ fallback: editable, rawContent: editable.rawContent, typeDefinitions })
+}
+
+function deriveEditedNote(
+  fallback: EditableNoteInput,
+  rawContent: MarkdownContent,
+  typeDefinitions?: MobileTypeDefinitions,
+): MobileNote {
+  if (hasMobileSourceFrontmatterIssue(rawContent)) {
+    return preservedMobileSourceFrontmatterMetadata({ ...fallback, rawContent }).note
+  }
+
+  return deriveEditableNote({ fallback, rawContent, typeDefinitions }).note
+}
+
+function workspaceNotePool(snapshot: MobileWorkspaceSnapshot): MobileNote[] {
+  return snapshot.allNotes ?? snapshot.notes
+}
+
+function workspaceNoteById(snapshot: MobileWorkspaceSnapshot, noteId: NoteId): MobileNote | null {
+  return [
+    ...snapshot.notes,
+    ...(snapshot.allNotes ?? []),
+  ].find((note) => note.id === noteId) ?? null
+}
+
+function createNoteWrites(snapshot: MobileWorkspaceSnapshot): MobileWorkspaceWrite[] {
+  const note = workspaceNoteById(snapshot, snapshot.selectedNoteId ?? '')
+  if (!note?.rawContent) return []
+
+  return [{
+    content: note.rawContent,
+    kind: 'createNote',
+    path: noteWritePath(note),
+  }]
+}
+
+function createRelationshipTarget(
+  snapshot: MobileWorkspaceSnapshot,
+  edit: Extract<MobileWorkspaceEdit, { type: 'createRelationshipTarget' }>,
+): MobileWorkspaceEditResult {
+  const sourceNote = workspaceNoteById(snapshot, edit.sourceNoteId)
+  const targetTitle = edit.targetTitle.trim()
+  const relationshipKey = edit.key.trim()
+  if (!sourceNote?.rawContent || !targetTitle || !relationshipKey) return { snapshot, writes: [] }
+
+  const explicitTarget = relationshipTargetWikilinkTarget(edit.targetRef) ?? relationshipTargetWikilinkTarget(targetTitle)
+  const existingTargetNote = explicitTarget
+    ? mobileNoteForWikilinkTarget(workspaceNotePool(snapshot), explicitTarget)
+    : null
+  if (existingTargetNote) {
+    return relationshipTargetEditResult({
+      createWrites: [],
+      relationshipKey,
+      snapshot,
+      sourceNote,
+      targetNote: existingTargetNote,
+    })
+  }
+
+  return createNewRelationshipTarget({
+    defaults: edit.defaults,
+    relationshipKey,
+    snapshot,
+    sourceNote,
+    targetTitle,
+  })
+}
+
+function relationshipTargetWikilinkTarget(value: string | undefined): WikilinkTarget | null {
+  const target = parseMobileWikilink(value ?? '')?.target.trim()
+  return target || null
+}
+
+function createNewRelationshipTarget({
+  defaults,
+  relationshipKey,
+  snapshot,
+  sourceNote,
+  targetTitle,
+}: {
+  defaults?: MobileCreateNoteDefaults
+  relationshipKey: FrontmatterKey
+  snapshot: MobileWorkspaceSnapshot
+  sourceNote: MobileNote
+  targetTitle: NoteTitle
+}): MobileWorkspaceEditResult {
+  const targetResult = createMobileNoteResult(
+    snapshot,
+    targetTitle,
+    mobileCreateRelationshipTargetDefaults({
+      defaults,
+      relationshipKey,
+      sourceNote,
+      typeDefinitions: snapshot.typeDefinitions,
+    }),
+  )
+  const targetSnapshot = targetResult.snapshot
+  const targetNote = workspaceNoteById(targetSnapshot, targetSnapshot.selectedNoteId ?? '')
+  if (!targetNote?.rawContent || targetResult.writes.length === 0) return { snapshot, writes: [] }
+
+  return relationshipTargetEditResult({
+    createWrites: targetResult.writes,
+    relationshipKey,
+    snapshot: targetSnapshot,
+    sourceNote,
+    targetNote,
+  })
+}
+
+function relationshipTargetEditResult({
+  createWrites,
+  relationshipKey,
+  snapshot,
+  sourceNote,
+  targetNote,
+}: {
+  createWrites: MobileWorkspaceWrite[]
+  relationshipKey: FrontmatterKey
+  snapshot: MobileWorkspaceSnapshot
+  sourceNote: MobileNote
+  targetNote: MobileNote
+}): MobileWorkspaceEditResult {
+  const result = applyMobileNoteEditResult(snapshot, {
+    key: relationshipKey,
+    noteId: sourceNote.id,
+    targetRef: `[[${mobileWikilinkTargetForNote(targetNote, sourceNote)}]]`,
+    targetTitle: targetNote.title,
+    type: 'addRelationship',
+  })
+
+  return {
+    snapshot: {
+      ...result.snapshot,
+      selectedNoteId: targetNote.id,
+    },
+    writes: [...createWrites, ...result.writes],
+  }
+}
+
+function createMobileView(
+  snapshot: MobileWorkspaceSnapshot,
+  definition: MobileViewDefinition,
+): MobileWorkspaceEditResult {
+  const existingViews = snapshot.views ?? []
+  const filename = createMobileSavedViewFilename(definition.name, existingViews.map((view) => view.filename))
+  const view: MobileSavedView = {
+    definition: {
+      ...definition,
+      order: nextMobileSavedViewOrder(existingViews),
+    },
+    filename,
+    id: mobileSavedViewId(filename),
+  }
+  const views = mobileSavedViewOrderUpdates([...existingViews, view])
+  const nextSnapshot = {
+    ...snapshot,
+    sidebarSections: buildMobileSidebarSections({
+      allNotesFileVisibility: mobileAllNotesFileVisibilityFromVaultConfig(snapshot.vaultConfig),
+      folderPaths: snapshot.folderPaths,
+      notes: workspaceNotePool(snapshot),
+      previousSections: snapshot.sidebarSections,
+      typeDefinitions: snapshot.typeDefinitions,
+      views,
+    }),
+    views,
+  }
+
+  return {
+    snapshot: nextSnapshot,
+    writes: views.map((savedView) => ({
+      content: serializeMobileSavedViewDefinition(savedView.definition),
+      kind: 'saveView',
+      path: mobileSavedViewPath(savedView.filename),
+    })),
+  }
+}
+
+function updateMobileView(
+  snapshot: MobileWorkspaceSnapshot,
+  viewId: string,
+  definition: MobileViewDefinition,
+): MobileWorkspaceEditResult {
+  const existingView = findMobileView(snapshot.views, viewId)
+  if (!existingView) return { snapshot, writes: [] }
+
+  const view = { ...existingView, definition }
+  const views = orderedMobileSavedViews((snapshot.views ?? []).map((candidate) => candidate.id === view.id ? view : candidate))
+
+  return {
+    snapshot: snapshotWithViews(snapshot, views),
+    writes: [{
+      content: serializeMobileSavedViewDefinition(definition),
+      kind: 'saveView',
+      path: mobileSavedViewPath(existingView.filename),
+    }],
+  }
+}
+
+function deleteMobileView(
+  snapshot: MobileWorkspaceSnapshot,
+  viewId: string,
+): MobileWorkspaceEditResult {
+  const existingView = findMobileView(snapshot.views, viewId)
+  if (!existingView) return { snapshot, writes: [] }
+
+  const views = orderedMobileSavedViews((snapshot.views ?? []).filter((view) => view.id !== existingView.id))
+
+  return {
+    snapshot: snapshotWithViews(snapshot, views),
+    writes: [{
+      kind: 'deleteView',
+      path: mobileSavedViewPath(existingView.filename),
+    }],
+  }
+}
+
+function moveMobileView(
+  snapshot: MobileWorkspaceSnapshot,
+  viewId: string,
+  direction: MobileViewMoveDirection,
+): MobileWorkspaceEditResult {
+  const views = moveMobileSavedView(snapshot.views ?? [], viewId, direction)
+  if (!views) return { snapshot, writes: [] }
+
+  const orderedViews = mobileSavedViewOrderUpdates(views)
+  return {
+    snapshot: snapshotWithViews(snapshot, orderedViews),
+    writes: orderedViews.map((view) => ({
+      content: serializeMobileSavedViewDefinition(view.definition),
+      kind: 'saveView',
+      path: mobileSavedViewPath(view.filename),
+    })),
+  }
+}
+
+function updatePrimaryNoteListProperties(
+  snapshot: MobileWorkspaceSnapshot,
+  edit: Extract<MobileWorkspaceEdit, { type: 'updatePrimaryNoteListProperties' }>,
+): MobileWorkspaceEditResult {
+  const vaultConfig = mobileVaultConfigWithPrimaryNoteListProperties(
+    snapshot.vaultConfig,
+    edit.target,
+    edit.listPropertiesDisplay,
+    { allNotesFileVisibility: edit.allNotesFileVisibility },
+  )
+
+  return {
+    snapshot: {
+      ...snapshot,
+      noteListPropertyOverrides: mobileNoteListPropertyOverridesFromVaultConfig(vaultConfig),
+      vaultConfig,
+    },
+    writes: [{ config: vaultConfig, kind: 'saveVaultConfig' }],
+  }
+}
+
+function setDefaultNoteWidth(
+  snapshot: MobileWorkspaceSnapshot,
+  mode: MobileNoteWidth,
+): MobileWorkspaceEditResult {
+  const vaultConfig = mobileVaultConfigWithDefaultNoteWidth(snapshot.vaultConfig, mode)
+  if (mobileDefaultNoteWidthFromVaultConfig(snapshot.vaultConfig) === vaultConfig.defaultNoteWidth) {
+    return { snapshot, writes: [] }
+  }
+
+  return {
+    snapshot: {
+      ...snapshot,
+      vaultConfig,
+    },
+    writes: [{ config: vaultConfig, kind: 'saveVaultConfig' }],
+  }
+}
+
+function findMobileView(views: MobileSavedView[] | undefined, viewId: string): MobileSavedView | null {
+  return views?.find((view) => view.id === viewId || view.filename === viewId) ?? null
+}
+
+function snapshotWithViews(
+  snapshot: MobileWorkspaceSnapshot,
+  views: MobileSavedView[],
+): MobileWorkspaceSnapshot {
+  return {
+    ...snapshot,
+    sidebarSections: buildMobileSidebarSections({
+      allNotesFileVisibility: mobileAllNotesFileVisibilityFromVaultConfig(snapshot.vaultConfig),
+      folderPaths: snapshot.folderPaths,
+      notes: workspaceNotePool(snapshot),
+      previousSections: snapshot.sidebarSections,
+      typeDefinitions: snapshot.typeDefinitions,
+      views,
+    }),
+    views,
+  }
+}
+
+function saveNoteWrites(
+  previousSnapshot: MobileWorkspaceSnapshot,
+  nextSnapshot: MobileWorkspaceSnapshot,
+  edit: MobileNoteEdit,
+): MobileWorkspaceWrite[] {
+  if (edit.type === 'hydrateNoteContent' || edit.type === 'hydrateTextFileContent') return []
+
+  const previousNote = workspaceNoteById(previousSnapshot, edit.noteId)
+  const nextNote = workspaceNoteById(nextSnapshot, edit.noteId)
+  if (previousNote?.rawContent === undefined || nextNote?.rawContent === undefined) return []
+  if (previousNote.rawContent === nextNote.rawContent) return []
+
+  return [{
+    content: nextNote.rawContent,
+    kind: 'saveNote',
+    path: noteWritePath(nextNote),
+  }]
+}
+
+function deriveEditableNote({
+  fallback,
+  rawContent,
+  typeDefinitions,
+}: {
+  fallback: EditableNoteInput
+  rawContent: MarkdownContent
+  typeDefinitions?: MobileTypeDefinitions
+}): DerivedNote {
+  const document = parseLocalVaultDocument(rawContent)
+  const filename = fallback.path?.split('/').at(-1) ?? fallback.id
+  const type = cleanTypeName(frontmatterScalar(document.frontmatter, ['type', 'Is A', 'is_a']) ?? fallback.type)
+  const blocks = localVaultEditorBlocks(document.body)
+  const properties = mobileProperties(frontmatterProperties(document.frontmatter))
+
+  return {
+    note: {
+      ...fallback,
+      aliases: frontmatterList(document.frontmatter, ['aliases', 'Aliases']),
+      archived: frontmatterFlag(document.frontmatter, ['_archived', 'archived']),
+      editorBlocks: blocks,
+      editorBullets: localVaultEditorBullets(blocks),
+      favorite: frontmatterFlag(document.frontmatter, ['_favorite', 'favorite']),
+      favoriteIndex: frontmatterNumber(document.frontmatter, ['_favorite_index', 'favorite_index', 'favorite index']),
+      icon: frontmatterText(document.frontmatter, ['_icon', 'icon']),
+      links: localVaultLinkCount(document.body),
+      modified: '0m ago',
+      noteWidth: normalizeMobileNoteWidth(frontmatterScalar(document.frontmatter, ['_width', 'width'])),
+      organized: frontmatterFlag(document.frontmatter, ['_organized']),
+      outgoingLinks: localVaultOutgoingLinks(document.body),
+      path: fallback.path ?? fallback.id,
+      properties,
+      rawContent,
+      status: frontmatterScalar(document.frontmatter, ['Status', 'status']) ?? '',
+      snippet: localVaultSnippet(document.body),
+      tags: frontmatterList(document.frontmatter, ['tags', 'Tags']).slice(0, 8),
+      title: deriveLocalVaultTitle({
+        body: document.body,
+        fallbackTitle: frontmatterScalar(document.frontmatter, ['title']),
+        filename,
+      }),
+      type,
+      typeTone: mobileTypeTone(type, typeDefinitions, fallback.typeTone),
+    },
+    rawRelationships: frontmatterRelationships(document.frontmatter),
+  }
+}
+
+function mobileTypeTone(
+  type: NoteTitle,
+  typeDefinitions: MobileTypeDefinitions | undefined,
+  fallback: MobileTone,
+): MobileTone {
+  return typeDefinitions?.[type]?.tone ?? typeToneFallbacks[type] ?? fallback
+}
+
+function withEditableContent(note: MobileNote): EditableNoteInput {
+  return {
+    ...note,
+    rawContent: note.rawContent ?? fallbackMarkdownContent(note),
+  }
+}
+
+function fallbackMarkdownContent(note: MobileNote): MarkdownContent {
+  const snippet = note.snippet.trim()
+  const body = snippet ? `# ${note.title}\n\n${snippet}\n` : `# ${note.title}\n\n`
+  return serializeDocument(fallbackFrontmatter(note), body)
+}
+
+function fallbackFrontmatter(note: MobileNote): LocalVaultFrontmatter {
+  const frontmatter = fallbackMetadataFrontmatter(note)
+  mergeFrontmatter(frontmatter, fallbackPropertyFrontmatter(note))
+  mergeFrontmatter(frontmatter, fallbackRelationshipFrontmatter(note))
+  return frontmatter
+}
+
+function mergeFrontmatter(target: LocalVaultFrontmatter, source: LocalVaultFrontmatter) {
+  for (const [key, value] of Object.entries(source)) {
+    target[key] = value
+  }
+}
+
+function fallbackMetadataFrontmatter(note: MobileNote): LocalVaultFrontmatter {
+  const frontmatter: LocalVaultFrontmatter = {}
+  addFrontmatterValue(frontmatter, 'type', fallbackTypeValue(note))
+  addFrontmatterValue(frontmatter, 'Status', note.status)
+  addFrontmatterValue(frontmatter, 'aliases', nonEmptyStringList(note.aliases))
+  addFrontmatterValue(frontmatter, 'tags', nonEmptyStringList(note.tags))
+  addFrontmatterValue(frontmatter, '_favorite', trueFlagValue(note.favorite))
+  addFrontmatterValue(frontmatter, '_favorite_index', favoriteIndexValue(note.favoriteIndex))
+  addFrontmatterValue(frontmatter, '_archived', trueFlagValue(note.archived))
+  addFrontmatterValue(frontmatter, '_organized', trueFlagValue(note.organized))
+  return frontmatter
+}
+
+function fallbackTypeValue(note: MobileNote): string | undefined {
+  return note.type && note.type !== 'Note' ? note.type : undefined
+}
+
+function nonEmptyStringList(values: string[] | undefined): string[] | undefined {
+  return values && values.length > 0 ? values : undefined
+}
+
+function trueFlagValue(value: boolean | undefined): true | undefined {
+  return value ? true : undefined
+}
+
+function favoriteIndexValue(value: number | null | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function fallbackPropertyFrontmatter(note: MobileNote): LocalVaultFrontmatter {
+  return Object.fromEntries((note.properties ?? []).map((property) => [property.key, property.value]))
+}
+
+function fallbackRelationshipFrontmatter(note: MobileNote): LocalVaultFrontmatter {
+  const frontmatter: LocalVaultFrontmatter = {}
+  for (const relationship of note.relationships) {
+    frontmatter[sharedRelationshipFrontmatterKey(relationship)] = relationship.values.map(mobileRelationshipRefValue)
+  }
+  return frontmatter
+}
+
+function addFrontmatterValue(
+  frontmatter: LocalVaultFrontmatter,
+  key: FrontmatterKey,
+  value: LocalVaultFrontmatterValue | undefined,
+) {
+  if (value !== undefined && value !== '') frontmatter[key] = value
+}
+
+function writeFrontmatterValue(
+  content: MarkdownContent,
+  key: FrontmatterKey,
+  value: LocalVaultFrontmatterValue | undefined,
+): MarkdownContent {
+  const document = parseLocalVaultDocument(content)
+  const nextFrontmatter = writeMobileFrontmatterValue(document.frontmatter, key, value)
+  return serializeDocument(nextFrontmatter, document.body)
+}
+
+function serializeDocument(frontmatter: LocalVaultFrontmatter, body: MarkdownContent): MarkdownContent {
+  const entries = Object.entries(frontmatter).filter(([, value]) => value !== null && value !== undefined)
+  if (entries.length === 0) return body
+
+  const frontmatterText = entries
+    .map(([key, value]) => serializeFrontmatterEntry(key, value))
+    .join('\n')
+
+  return `---\n${frontmatterText}\n---\n${body}`
+}
+
+function serializeFrontmatterEntry(key: FrontmatterKey, value: LocalVaultFrontmatterValue): string {
+  const frontmatterKey = serializeLocalVaultFrontmatterKey(key)
+  if (Array.isArray(value)) {
+    return `${frontmatterKey}:\n${value.map((item) => `  - ${serializeLocalVaultFrontmatterScalar(item)}`).join('\n')}`
+  }
+
+  return `${frontmatterKey}: ${serializeLocalVaultFrontmatterScalar(value)}`
+}
+
+function mobileRelationships(
+  relationships: Record<FrontmatterKey, WikilinkRef[]>,
+  notes: MobileNote[],
+): MobileRelationship[] {
+  return Object.entries(relationships).map(([key, values]) => ({
+    key,
+    kind: relationshipKindForKey(key),
+    label: relationshipKindForKey(key) === 'custom' ? humanizeKey(key) : undefined,
+    values: values.map((value) => relationshipValue(value, notes)),
+  }))
+}
+
+function relationshipValue(rawValue: WikilinkRef, notes: MobileNote[]): MobileRelationshipValue {
+  const target = wikilinkTarget(rawValue)
+  const note = mobileNoteForWikilinkTarget(notes, target)
+  if (!note) return unresolvedRelationshipValue(rawValue, target)
+
+  return {
+    id: note.id,
+    ref: rawValue,
+    title: note.title,
+    type: note.type,
+    typeTone: note.typeTone,
+  }
+}
+
+function unresolvedRelationshipValue(rawValue: WikilinkRef, target: WikilinkTarget): MobileRelationshipValue {
+  return {
+    ref: rawValue,
+    title: target,
+    type: 'Note',
+    typeTone: 'gray',
+  }
+}
+
+function relationshipRefForTitle(title: NoteTitle, notes: MobileNote[], sourceNote: MobileNote): WikilinkRef {
+  if (/^\[\[[^\]]+\]\]$/.test(title)) return title
+  const targetNote = mobileNoteForWikilinkTarget(notes, title)
+  const target = targetNote ? mobileWikilinkTargetForNote(targetNote, sourceNote) : slugifyTitle(title)
+  return `[[${target}]]`
+}
+
+function normalizedRelationshipRef(ref: WikilinkRef | undefined): WikilinkRef | null {
+  const trimmed = ref?.trim()
+  if (!trimmed) return null
+  if (/^\[\[[^\]]+\]\]$/.test(trimmed)) return trimmed
+  return `[[${trimmed}]]`
+}
+
+function wikilinkTarget(value: WikilinkRef): WikilinkTarget {
+  return parseMobileWikilink(value)?.target ?? value.trim()
+}
+
+function mobileProperties(properties: Record<string, LocalVaultFrontmatterValue>): MobileProperty[] {
+  return Object.entries(properties).map(([key, value]) => ({
+    key,
+    label: humanizeKey(key),
+    value: mobilePropertyValue(value),
+  }))
+}
+
+function mobilePropertyValue(value: LocalVaultFrontmatterValue): MobilePropertyValue {
+  if (Array.isArray(value)) return value.flatMap(scalarPropertyArrayItem)
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
+  return ''
+}
+
+function scalarPropertyArrayItem(value: LocalVaultFrontmatterScalar): string[] {
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return [String(value)]
+  return []
+}
+
+function cleanTypeName(value: string): string {
+  return wikilinkTarget(value).replace(/\.md$/, '')
+}
+
+const typeToneFallbacks: Record<string, MobileTone> = {
+  Event: 'yellow',
+  Experiment: 'red',
+  Person: 'yellow',
+  Procedure: 'purple',
+  Project: 'red',
+  Responsibility: 'purple',
+  Topic: 'green',
+  Type: 'blue',
+}
+
+function wikilinkSearchText(note: MobileNote): string {
+  return [note.title, note.type, note.path ?? '', ...(note.aliases ?? []), note.tags.join(' ')].join(' ').toLowerCase()
+}
+
+function noteListSubtitle(notes: MobileNote[]): string {
+  const count = notes.filter(isMobileInboxNote).length
+  return `${count.toLocaleString()} open notes`
+}
+
+function slugifyTitle(title: NoteTitle): string {
+  return title
+    .trim()
+    .toLowerCase()
+    .replace(/['"]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '') || 'untitled'
+}
+
+function humanizeKey(key: FrontmatterKey): string {
+  return key
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function normalizedFrontmatterKey(key: FrontmatterKey): string {
+  return key.trim().toLowerCase().replace(/\s+/g, '_')
+}
+
+function frontmatterText(
+  frontmatter: LocalVaultFrontmatter,
+  keys: readonly FrontmatterKey[],
+): string | null {
+  for (const key of keys) {
+    const value = frontmatterValueForKey(frontmatter, key)
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+
+  return null
+}
+
+function frontmatterNumber(
+  frontmatter: LocalVaultFrontmatter,
+  keys: readonly FrontmatterKey[],
+): number | null {
+  for (const key of keys) {
+    const value = frontmatterValueForKey(frontmatter, key)
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+  }
+
+  return null
+}
+
+function frontmatterValueForKey(
+  frontmatter: LocalVaultFrontmatter,
+  key: FrontmatterKey,
+): LocalVaultFrontmatterValue | undefined {
+  const exactValue = frontmatter[key]
+  if (exactValue !== undefined) return exactValue
+
+  const normalizedKey = normalizedFrontmatterKey(key)
+  return Object.entries(frontmatter).find(([candidateKey]) => (
+    normalizedFrontmatterKey(candidateKey) === normalizedKey
+  ))?.[1]
+}
+
+function absoluteDate(timestamp: number): string {
+  return new Intl.DateTimeFormat('en', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(timestamp))
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}

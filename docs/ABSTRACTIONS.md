@@ -78,6 +78,65 @@ Rich-editor keyboard extensions share their capture-phase wiring through `src/co
 
 Focused block type changes share the same block-type catalog in `src/utils/richEditorBlockTypes.ts` across the formatting toolbar, command palette, and block handle menu. UI surfaces call the helpers in `src/components/richEditorBlockTypeCommands.ts` instead of manually constructing BlockNote updates so conversion preserves current block content, re-resolves captured block ids, runs inside one editor transaction, restores focus only after the mutation, and emits the shared `editor_block_type_changed` analytics event.
 
+## Mobile UI Foundation
+
+The React Native app in `apps/mobile` has its own UI abstraction layer. Mobile screens should compose Tolaria-native primitives from `apps/mobile/src/ui` instead of directly styling raw React Native controls in feature screens.
+
+Current primitives:
+
+| Primitive | Purpose |
+|---|---|
+| `MobileButton` | Text or icon+text actions with Tolaria variants |
+| `MobileIconButton` | Toolbar and compact icon actions |
+| `MobileTextInput` | Tolaria-styled text entry over the local RNR-style input primitive |
+| `MobilePanel` / `MobileToolbar` | Sidebar, note-list, editor, and properties structure |
+| `MobileListRow` | Dense note-list rows with selected state, metadata, and chips |
+| `MobileChip` | Type, tag, and relationship labels |
+| `MobilePropertyRow` | Properties panel label/value rows |
+
+Workspace surfaces now sit one level above those primitives:
+
+| Surface | Purpose |
+|---|---|
+| `MobileWorkspaceSnapshot` | Production-shaped data contract for mobile workspace UI |
+| `mobileWorkspaceEditing.ts` | Pure in-process reducer for note creation, full raw markdown/frontmatter edits, title edits, frontmatter scalar properties, favorite/archive flags, relationship add/remove, folder edits, saved View edits, Type definition metadata/schema edits, exact restore edits for undo/redo, and write planning |
+| `mobileWorkspaceFolders.ts` | Shared mobile folder path normalization, portable folder-name validation, subtree matching, and sidebar tree derivation |
+| `mobileWorkspaceTypeEditing.ts` | Type document create/delete/update/reorder write planning for the mobile reducer |
+| `mobileTypeDefinitionSchema.ts` | Mobile form conversion for Type document instance schema/default fields |
+| `mobileVaultConfig.ts` | Mobile vault-path-local config normalization for primary All Notes/Inbox display properties |
+| `mobileWikilinkAutocomplete.ts` | Cursor-aware mobile wikilink query detection, canonical target insertion, and desktop-style suggestion matching across title, aliases, filename, type, tags, and path |
+| `mobileEditorCommands.ts` | Active editor command registry that lets tablet/phone command palettes dispatch selection-sensitive editor actions without importing editor internals |
+| `mobileInlineMath.ts` | Shared desktop-compatible inline math parser for mobile hydration, input transforms, and save serialization |
+| `src/utils/externalUrl.ts` | Shared dependency-free external URL normalizer used by desktop link opening and mobile WYSIWYG link editing |
+| `MobileWysiwygMathHtml.ts` | Mobile KaTeX MathML rendering helper for native TenTap inline math nodes |
+| `MobileWysiwygTentapWebEditor.tsx` | Tolaria TenTap WebView entrypoint that bundles custom mobile Tiptap extensions |
+| `MobileWysiwygTentapEditorHtml.ts` | Generated custom TenTap WebView HTML used by the native WYSIWYG editor |
+| `nativeWysiwyg*Probe.ts` | Native Expo simulator proof models for mobile editor behavior that must be verified outside React Native Web |
+| `TabletWorkspace` | Tablet shell that owns selected-note state, panel layout, action-sheet forms, and editable snapshot state |
+| `PhoneWorkspace` | Phone shell that reuses the tablet controller/repository boundary while adapting navigation to list, sidebar, editor, and properties screens |
+| `MobileWorkspaceSidebar` | Sidebar groups, counts, and folder tree |
+| `MobileNoteListPanel` | Note-list toolbar, rows, chips, and empty state |
+| `MobileCommandPalette` / `mobileCommandPalette.ts` | Desktop-ID-preserving mobile command search over existing workspace callbacks, including selected-note file utilities and retargeting |
+| `MobileWorkspaceActionSheet` | Search, create, property, relationship, and more-action sheets |
+| `TabletEditorPanel` | Editor rendering plus full raw markdown/frontmatter editing with wikilink suggestions |
+| `MobileWysiwygMarkdownEditor` | Native TenTap editor wrapper, custom bridge registration, markdown hydration/serialization, and editor command registration |
+| `MobilePropertiesPanel` | Scalar properties, tags, and typed relationship display/removal |
+| `MobileSyncStatusBar` | Bottom sync/status footer |
+
+Mobile UI copy should reuse the localization catalog in `src/lib/locales/en.json` whenever the desktop concept already exists. New mobile-specific copy must be added to that catalog and translated through the normal Lara workflow.
+
+The mobile UI lab uses a fixture-backed repository until a surface has passed visual and interaction QA. The same repository boundary can read an injected host snapshot from `tolaria:mobile-workspace-snapshot` for local large-vault QA and an explicit Expo native vault when launched with `source=native-vault`. `localVaultSnapshot.ts` owns the pure conversion from scanned Markdown files, explicit folder paths, and `views/*.yml` into `MobileWorkspaceSnapshot`, including type-color inheritance, Type document metadata/raw content, Type instance schema/defaults, relationship value resolution, markdown block previews, sidebar counts, custom scalar properties, raw note content for the capped visible note list, metadata summaries for the full note pool, empty folder visibility, and saved View counts/results. Type document metadata lookup follows desktop-normalized frontmatter aliases for casing and spacing variants, while preserving underscore-only system-field contracts such as `_organized`. Large-vault host QA injects full note Markdown through `tolaria:mobile-workspace-note-contents` so the tablet shell can lazily hydrate metadata-only notes when a search, saved View, type, or folder selection opens a note outside the capped visible list. `mobileWorkspaceEditing.ts` returns both the next snapshot and a write plan (`createNote` / `saveNote` / `moveNote` / folder directory writes); saved View edits write `views/*.yml`, note folder moves and explicit filename renames emit a file move plus only the backlink rewrite saves, folder edits write create/delete/rename directory operations, and Type document create/delete/update/reorder edits write the corresponding Type markdown document frontmatter or deletion plan, including custom scalar defaults and wikilink relationship fields. `tabletWorkspaceHistory.ts` records undo/redo from before/after snapshots and uses reducer restore edits for structural changes so created/deleted notes, folders, saved Views, and Type definitions can round-trip without losing raw content, generated filenames, ordering, or write-plan paths; `tabletWorkspacePathHistory.ts` handles path-changing inverse commands for note moves, note filename renames, and folder subtree renames so backlink rewrites stay reducer-owned. The filesystem repository persists those write plans through relative paths while fixture and host repositories keep deterministic QA behavior. Git and sync mutation logic should be wired only after the corresponding native shell has a stable fixture state and screenshot target.
+
+The tablet workspace controller owns temporary interaction state: selected sidebar scope, selected note, search query, action-sheet form values, and an editable snapshot derived by `mobileWorkspaceEditing.ts`. `TabletWorkspace` and `PhoneWorkspace` should share that controller/repository boundary; phone-specific work should adapt navigation and chrome, not fork business logic. The repository boundary owns persistence. Visual components must continue to receive callbacks and snapshots rather than importing Expo or filesystem APIs directly.
+
+Mobile deep-link copying follows the same boundary. `mobileDeepLinks.ts` owns URL construction from `MobileWorkspaceSnapshot.source` and the selected note path, and `mobileClipboard.ts` owns the Expo Clipboard call plus deterministic QA logging. Components such as `MobileWorkspaceActionSheet` receive `onCopyDeepLink` and do not import clipboard or URL-building modules directly.
+
+Mobile PDF export uses the same callback boundary. `mobilePdfExport.ts` converts the selected `MobileNote` into frontmatter-free HTML with the mobile Markdown body renderer, records deterministic web/Playwright export attempts, and calls `expo-print` plus `expo-sharing` only from the controller-owned action path. Generated PDFs are temporary platform share artifacts and do not mutate the vault.
+
+Mobile attachment import stays behind the same boundary. `mobileAttachmentImport.native.ts` is the only mobile module that talks to `expo-document-picker` for user file selection, `mobileAttachments.ts` owns timestamped safe filenames and portable `attachments/...` Markdown serialization, and editor components receive importer callbacks plus pure attachment payloads.
+
+`apps/mobile/docs/ui-parity-inventory.md` is the working checklist for mobile surface parity. `pnpm mobile:qa:screenshots` is the fast visual QA command for this branch: it exports the Expo web bundle, serves it locally, and captures tablet/phone screenshots for the UI lab without running the full desktop/native Tolaria suite. The harness uses `$HOME/Laputa` as the default representative large-vault path when available; set `MOBILE_QA_VAULT_PATH` to override it. The local-vault pass scans that vault read-only, adds local-vault screenshots, and checks snapshot load/render/navigation budgets without committing vault content.
+
 ### Vault Git Capability
 
 Git is a per-vault capability, not a prerequisite for the document model. A vault can be:

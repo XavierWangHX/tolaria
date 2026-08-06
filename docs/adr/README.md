@@ -230,3 +230,19 @@ proposed → active → superseded
 | [0172](0172-local-codescene-change-safeguards.md) | Local CodeScene safeguards before commits and direct-to-main pushes | active |
 | [0175](0175-mcp-vault-lifecycle-uses-app-registry.md) | MCP vault lifecycle uses the app registry | active |
 | [0173](0173-future-calendar-version-recovery.md) | Future calendar version rejection and recovery | active |
+| [0174](0174-expo-react-native-mobile-ui-foundation.md) | Expo React Native mobile UI foundation | active |
+| [0175](0175-nativewind-react-native-reusables-mobile-primitives.md) | Nativewind and React Native Reusables for mobile primitives | active |
+| [0176](0176-expo-sdk-54-for-ipad-expo-go-preview.md) | Expo SDK 54 for iPad Expo Go preview | active |
+| [0177](0177-expo-file-system-mobile-vault-repository.md) | Expo FileSystem mobile vault repository | active |
+| [0178](0178-expo-clipboard-mobile-deep-link-copy.md) | Expo Clipboard for mobile deep-link copy | active |
+| [0179](0179-mobile-folder-mutation-write-contract.md) | Mobile folder mutation write contract | active |
+| [0180](0180-mobile-note-move-write-contract.md) | Mobile note move write contract | active |
+| [0181](0181-tentap-mobile-wysiwyg-editor.md) | TenTap mobile WYSIWYG editor | active |
+| [0182](0182-expo-print-sharing-mobile-pdf-export.md) | Expo Print and Sharing for mobile PDF export | active |
+| [0183](0183-expo-document-picker-mobile-attachments.md) | Expo Document Picker for mobile attachments | active |
+| [0184](0184-mobile-vault-config-persistence.md) | Mobile vault-scoped config persistence | active |
+| [0185](0185-mobile-tentap-inline-math-node.md) | Mobile TenTap inline math node | active |
+| [0186](0186-mobile-inline-math-mathml-rendering.md) | Mobile inline math MathML rendering | active |
+| [0187](0187-mobile-tentap-code-block-node.md) | Mobile TenTap code block node | active |
+| [0188](0188-mobile-tentap-table-node.md) | Mobile TenTap table node | active |
+| [0189](0189-mobile-tentap-aligned-table-metadata.md) | Mobile TenTap aligned table metadata | active |

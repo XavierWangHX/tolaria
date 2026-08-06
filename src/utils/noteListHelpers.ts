@@ -18,6 +18,27 @@ import { evaluateView } from './viewFilters'
 import { viewMatchesSelection } from './viewIdentity'
 import { wikilinkTarget, resolveEntry } from './wikilink'
 import { buildTypeVisibilityLookup, isSectionEntryVisibleForType } from './typeVisibility'
+import {
+  compareSortableValues,
+  getDefaultDirection,
+  parseSortConfig,
+  serializeSortConfig,
+  statusSortRank,
+  type SortConfig,
+  type SortDirection,
+  type SortOption,
+} from './noteSort'
+export {
+  DEFAULT_SORT_OPTIONS,
+  getDefaultDirection,
+  getSortOptionLabel,
+  parseSortConfig,
+  serializeSortConfig,
+  SORT_OPTIONS,
+  type SortConfig,
+  type SortDirection,
+  type SortOption,
+} from './noteSort'
 
 export type NoteListFilter = 'open' | 'archived'
 
@@ -122,34 +143,6 @@ export function sortByModified(a: VaultEntry, b: VaultEntry): number {
   return (getDisplayDate(b) ?? 0) - (getDisplayDate(a) ?? 0)
 }
 
-export type SortOption = 'modified' | 'created' | 'title' | 'status' | `property:${string}`
-export type SortDirection = 'asc' | 'desc'
-
-export interface SortConfig {
-  option: SortOption
-  direction: SortDirection
-}
-
-export const DEFAULT_SORT_OPTIONS: SortOption[] = ['modified', 'created', 'title', 'status']
-const BUILT_IN_SORT_OPTIONS = new Set<string>(DEFAULT_SORT_OPTIONS)
-
-export function getDefaultDirection(option: SortOption): SortDirection {
-  if (option === 'modified' || option === 'created') return 'desc'
-  return 'asc'
-}
-
-export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: 'modified', label: 'Modified' },
-  { value: 'created', label: 'Created' },
-  { value: 'title', label: 'Title' },
-  { value: 'status', label: 'Status' },
-]
-
-export function getSortOptionLabel(option: SortOption): string {
-  if (option.startsWith('property:')) return option.slice('property:'.length)
-  return SORT_OPTIONS.find((o) => o.value === option)?.label ?? option
-}
-
 /** Extract sortable custom property keys from a list of entries. */
 export function extractSortableProperties(entries: VaultEntry[]): string[] {
   const keys = new Set<string>()
@@ -159,36 +152,6 @@ export function extractSortableProperties(entries: VaultEntry[]): string[] {
   return [...keys].sort((a, b) => a.localeCompare(b))
 }
 
-const STATUS_ORDER: Record<string, number> = {
-  Active: 0, Paused: 1, Done: 2, Finished: 3,
-}
-const STATUS_ORDER_LOOKUP = new Map(Object.entries(STATUS_ORDER))
-
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}/
-
-function tryParseDate(s: string): number | null {
-  if (!ISO_DATE_RE.test(s)) return null
-  const d = new Date(s)
-  return Number.isNaN(d.getTime()) ? null : d.getTime()
-}
-
-function compareNumericPair(a: unknown, b: unknown): number | null {
-  if (typeof a === 'number' && typeof b === 'number') return a - b
-  if (typeof a === 'boolean' && typeof b === 'boolean') return (a ? 1 : 0) - (b ? 1 : 0)
-  return null
-}
-
-function comparePropertyValues(a: unknown, b: unknown): number {
-  const numeric = compareNumericPair(a, b)
-  if (numeric !== null) return numeric
-  const sa = String(a)
-  const sb = String(b)
-  const da = tryParseDate(sa)
-  const db = tryParseDate(sb)
-  if (da !== null && db !== null) return da - db
-  return sa.localeCompare(sb)
-}
-
 function makePropertyComparator(key: string, flip: number): (a: VaultEntry, b: VaultEntry) => number {
   return (a, b) => {
     const va = Reflect.get(a.properties, key) ?? null
@@ -196,7 +159,7 @@ function makePropertyComparator(key: string, flip: number): (a: VaultEntry, b: V
     if (va == null && vb == null) return 0
     if (va == null) return 1
     if (vb == null) return -1
-    return flip * comparePropertyValues(va, vb)
+    return flip * compareSortableValues(va, vb)
   }
 }
 
@@ -204,8 +167,8 @@ function makeBuiltinComparator(option: string, flip: number): (a: VaultEntry, b:
   if (option === 'title') return (a, b) => flip * stringField(a.title).localeCompare(stringField(b.title))
   if (option === 'created') return (a, b) => flip * ((a.createdAt ?? a.modifiedAt ?? 0) - (b.createdAt ?? b.modifiedAt ?? 0))
   if (option === 'status') return (a, b) => {
-    const sa = STATUS_ORDER_LOOKUP.get(a.status ?? '') ?? 999
-    const sb = STATUS_ORDER_LOOKUP.get(b.status ?? '') ?? 999
+    const sa = statusSortRank(a.status)
+    const sb = statusSortRank(b.status)
     if (sa !== sb) return flip * (sa - sb)
     return (getDisplayDate(b) ?? 0) - (getDisplayDate(a) ?? 0)
   }
@@ -216,29 +179,6 @@ export function getSortComparator(option: SortOption, direction?: SortDirection)
   const flip = (direction ?? getDefaultDirection(option)) === 'asc' ? 1 : -1
   if (option.startsWith('property:')) return makePropertyComparator(option.slice('property:'.length), flip)
   return makeBuiltinComparator(option, flip)
-}
-
-/** Serialize a SortConfig to the string format stored in type frontmatter: "option:direction". */
-export function serializeSortConfig(config: SortConfig): string {
-  return `${config.option}:${config.direction}`
-}
-
-/** Parse a frontmatter sort string ("option:direction") back to SortConfig. */
-export function parseSortConfig(raw: string | null | undefined): SortConfig | null {
-  if (!raw) return null
-  // Format: "option:direction" where option itself can contain ":" (e.g. "property:Priority:asc")
-  const lastColon = raw.lastIndexOf(':')
-  if (lastColon <= 0) return null
-  const dir = raw.slice(lastColon + 1)
-  if (dir !== 'asc' && dir !== 'desc') return null
-  const optionName = raw.slice(0, lastColon)
-  if (optionName === 'property:') return null
-  const option = (
-    optionName.startsWith('property:') || BUILT_IN_SORT_OPTIONS.has(optionName)
-      ? optionName
-      : `property:${optionName}`
-  ) as SortOption
-  return { option, direction: dir }
 }
 
 export function loadSortPreferences(): Record<string, SortConfig> {
