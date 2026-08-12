@@ -9,20 +9,7 @@ type MobileButtonVariant = 'primary' | 'secondary' | 'ghost'
 type MobileButtonDensity = 'default' | 'compact' | 'status'
 type MobileButtonTone = 'default' | 'danger'
 
-export function MobileButton({
-  accessibilityLabel,
-  accessibilityRole,
-  accessibilityState,
-  density = 'default',
-  disabled = false,
-  icon,
-  label,
-  onPress,
-  style,
-  testID,
-  tone = 'default',
-  variant = 'secondary',
-}: {
+type MobileButtonProps = {
   accessibilityLabel?: string
   accessibilityRole?: ButtonProps['accessibilityRole']
   accessibilityState?: ButtonProps['accessibilityState']
@@ -35,9 +22,33 @@ export function MobileButton({
   testID?: string
   tone?: MobileButtonTone
   variant?: MobileButtonVariant
-}) {
+}
+
+export function MobileButton(props: MobileButtonProps) {
+  const {
+    accessibilityLabel,
+    accessibilityRole,
+    accessibilityState,
+    density = 'default',
+    disabled = false,
+    icon,
+    label,
+    onPress,
+    style,
+    testID,
+    tone = 'default',
+    variant = 'secondary',
+  } = props
   const buttonVariant = buttonVariantByMobileVariant[variant]
-  const buttonStyle = Platform.OS === 'web' ? style : [styles.base, buttonDensityStyles[density], style]
+  const buttonStyle = Platform.OS === 'web'
+    ? style
+    : [
+      styles.base,
+      buttonDensityStyles[density],
+      buttonVariantStyles[variant],
+      disabled ? styles.disabled : null,
+      style,
+    ]
   const labelStyle = Platform.OS === 'web' ? undefined : [labelDensityStyles[density], labelColorStyles[variant], tone === 'danger' ? styles.labelDanger : null]
 
   return (
@@ -107,6 +118,9 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingHorizontal: 12,
   },
+  disabled: {
+    opacity: 0.5,
+  },
   compact: {
     minHeight: 32,
     borderRadius: 6,
@@ -137,12 +151,21 @@ const styles = StyleSheet.create({
   labelSecondary: {
     color: mobileColors.text,
   },
+  primary: {
+    backgroundColor: mobileColors.primary,
+  },
+  secondary: {
+    backgroundColor: mobileColors.control,
+  },
   status: {
     minHeight: 0,
     height: 24,
     borderRadius: 4,
     paddingHorizontal: 4,
     paddingVertical: 2,
+  },
+  ghost: {
+    backgroundColor: 'transparent',
   },
 })
 
@@ -162,4 +185,10 @@ const labelDensityStyles = {
   compact: styles.labelCompact,
   default: styles.labelDefault,
   status: styles.labelStatus,
+} as const
+
+const buttonVariantStyles = {
+  ghost: styles.ghost,
+  primary: styles.primary,
+  secondary: styles.secondary,
 } as const
