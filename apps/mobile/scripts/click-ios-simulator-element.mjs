@@ -2,7 +2,8 @@
 /* global console, process, setTimeout */
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { simulatorWindowTargetPoint } from '../src/qa/nativeSimulatorWindowGeometry.ts'
 
@@ -136,14 +137,39 @@ function escapeAppleScript(value) {
 }
 
 function clickPoint(point) {
-  run('osascript', [
-    '-e',
-    'tell application "Simulator" to activate',
-    '-e',
-    'delay 0.2',
-    '-e',
-    `tell application "System Events" to click at {${point.x}, ${point.y}}`,
-  ])
+  run(coreGraphicsClickerPath(), [String(point.x), String(point.y)])
+}
+
+function coreGraphicsClickerPath() {
+  const directory = join(tmpdir(), 'tolaria-mobile-qa')
+  const sourcePath = join(directory, 'click-simulator.swift')
+  const binaryPath = join(directory, 'click-simulator')
+  if (existsSync(binaryPath)) return binaryPath
+
+  mkdirSync(directory, { recursive: true })
+  writeFileSync(sourcePath, coreGraphicsClickSource())
+  run('swiftc', [sourcePath, '-o', binaryPath])
+  return binaryPath
+}
+
+function coreGraphicsClickSource() {
+  return `
+    import CoreGraphics
+    import Darwin
+
+    guard CommandLine.arguments.count == 3,
+      let x = Double(CommandLine.arguments[1]),
+      let y = Double(CommandLine.arguments[2]) else {
+      exit(2)
+    }
+
+    let point = CGPoint(x: x, y: y)
+    CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+    usleep(50_000)
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+    usleep(50_000)
+    CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left)?.post(tap: .cghidEventTap)
+  `
 }
 
 async function main() {
