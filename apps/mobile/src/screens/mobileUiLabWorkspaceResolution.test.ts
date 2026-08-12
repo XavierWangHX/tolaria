@@ -37,14 +37,25 @@ describe('mobileUiRequestedWorkspaceSource', () => {
   it('starts interactive launches on the native workspace instead of fixture data', () => {
     expect(mobileUiRequestedWorkspaceSource({
       hasNativeWorkspace: false,
+      platform: 'ios',
       requestedSource: null,
       searchParams: new URLSearchParams(),
     })).toBe('native')
   })
 
+  it('keeps the browser QA harness on deterministic fixture data by default', () => {
+    expect(mobileUiRequestedWorkspaceSource({
+      hasNativeWorkspace: false,
+      platform: 'web',
+      requestedSource: null,
+      searchParams: new URLSearchParams(),
+    })).toBe('fixture')
+  })
+
   it('isolates deterministic editor probes from ambient dev-vault configuration', () => {
     expect(mobileUiRequestedWorkspaceSource({
       hasNativeWorkspace: false,
+      platform: 'ios',
       requestedSource: 'dev-vault',
       searchParams: new URLSearchParams('wysiwygAutocompleteProbe=1'),
     })).toBe('fixture')
@@ -53,6 +64,7 @@ describe('mobileUiRequestedWorkspaceSource', () => {
   it('uses the native repository for persistence probes', () => {
     expect(mobileUiRequestedWorkspaceSource({
       hasNativeWorkspace: false,
+      platform: 'ios',
       requestedSource: 'dev-vault',
       searchParams: new URLSearchParams('wysiwygPersistenceProbe=1'),
     })).toBe('native')
@@ -61,6 +73,7 @@ describe('mobileUiRequestedWorkspaceSource', () => {
   it('keeps ordinary layout QA on the configured real-vault source', () => {
     expect(mobileUiRequestedWorkspaceSource({
       hasNativeWorkspace: false,
+      platform: 'ios',
       requestedSource: 'dev-vault',
       searchParams: new URLSearchParams('layoutProbe=1'),
     })).toBe('dev')

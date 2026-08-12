@@ -41,17 +41,19 @@ const configuredWorkspaceSources: Record<string, NonNullable<ReadOnlyWorkspaceRe
 
 export function mobileUiRequestedWorkspaceSource({
   hasNativeWorkspace,
+  platform = typeof document === 'undefined' ? 'native' : 'web',
   requestedSource,
   searchParams,
 }: {
   hasNativeWorkspace: boolean
+  platform?: string
   requestedSource: string | null
   searchParams: URLSearchParams
 }): NonNullable<ReadOnlyWorkspaceRequest['source']> {
   if (hasNativeWorkspace) return 'native'
   if (hasPersistenceProbe(searchParams)) return 'native'
   if (fixtureProbeParams.some((key) => searchParams.get(key) === '1')) return 'fixture'
-  if (!requestedSource) return 'native'
+  if (!requestedSource) return platform === 'web' ? 'fixture' : 'native'
   return configuredWorkspaceSources[requestedSource] ?? 'fixture'
 }
 
