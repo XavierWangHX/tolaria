@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
-import { MagnifyingGlass, Plus } from 'phosphor-react-native'
+import { FolderOpen, MagnifyingGlass, Plus } from 'phosphor-react-native'
 import { FlatList, StyleSheet, View } from 'react-native'
 import { Text } from '../ui/text'
 import { mobileCopy, mobileText } from '../../i18n/mobileText'
 import { MobileLayoutProbeReadout } from '../../qa/MobileLayoutProbeReadout'
 import { useMobileLayoutProbe, type MobileLayoutProbe } from '../../qa/mobileLayoutProbe'
 import { MobileChip } from '../../ui/MobileChip'
+import { MobileButton } from '../../ui/MobileButton'
 import { MobileIconButton } from '../../ui/MobileIconButton'
 import { MobileListRow } from '../../ui/MobileListRow'
 import { MobilePanel, MobileToolbar, MobileToolbarSpacer, MobileToolbarTitle } from '../../ui/MobilePanel'
@@ -16,7 +17,10 @@ import type { MobileNeighborhood, MobileNeighborhoodGroup } from '../../workspac
 import type { MobileNote, MobilePropertyDisplayMode, MobileTypeDefinitions } from '../../workspace/mobileWorkspaceModel'
 import { MobileNoteListBulkActionBar } from './MobileNoteListBulkActionBar'
 import { MobileTypeIcon } from './MobileWorkspaceIcons'
-import { mobileNoteListToolbarChrome } from './MobileNoteListPanelChrome'
+import {
+  mobileNoteListEmptyStateChrome,
+  mobileNoteListToolbarChrome,
+} from './MobileNoteListPanelChrome'
 import {
   addMobileNoteListSelection,
   mobileNoteListSelectionIsArchived,
@@ -40,6 +44,7 @@ type MobileNoteListPanelProps = {
   bulkActions?: MobileNoteListBulkActions
   compact: boolean
   displayPropertyKeys?: string[]
+  emptyVault?: boolean
   fullWidth?: boolean
   leading?: ReactNode
   layoutProbe?: boolean
@@ -47,6 +52,7 @@ type MobileNoteListPanelProps = {
   notes: MobileNote[]
   onOpenCreateNote: () => void
   onOpenSearch: () => void
+  onOpenVault?: () => void
   onSelectNote: (noteId: string) => void
   propertyDisplayModes?: Record<string, MobilePropertyDisplayMode> | null
   searchQuery?: string
@@ -61,6 +67,7 @@ export function MobileNoteListPanel(props: MobileNoteListPanelProps) {
     bulkActions,
     compact,
     displayPropertyKeys = [],
+    emptyVault = false,
     fullWidth = false,
     leading,
     layoutProbe: layoutProbeEnabled = false,
@@ -68,6 +75,7 @@ export function MobileNoteListPanel(props: MobileNoteListPanelProps) {
     notes,
     onOpenCreateNote,
     onOpenSearch,
+    onOpenVault,
     onSelectNote,
     propertyDisplayModes,
     searchQuery,
@@ -104,10 +112,12 @@ export function MobileNoteListPanel(props: MobileNoteListPanelProps) {
         activeNoteId={activeNoteId}
         bulkSelection={bulkSelection}
         displayPropertyKeys={displayPropertyKeys}
+        emptyVault={emptyVault}
         layoutProbe={layoutProbe.probe}
         neighborhood={neighborhood}
         notes={notes}
         onSelectNote={onSelectNote}
+        onOpenVault={onOpenVault}
         propertyDisplayModes={propertyDisplayModes}
         searchQuery={searchQuery}
         selectedNoteId={selectedNoteId}
@@ -119,31 +129,38 @@ export function MobileNoteListPanel(props: MobileNoteListPanelProps) {
   )
 }
 
-function NoteListContent({
-  activeNoteId,
-  bulkSelection,
-  displayPropertyKeys,
-  layoutProbe,
-  neighborhood,
-  notes,
-  onSelectNote,
-  propertyDisplayModes,
-  searchQuery,
-  selectedNoteId,
-  typeDefinitions,
-}: {
+type NoteListContentProps = {
   activeNoteId: string | null
   bulkSelection: ReturnType<typeof useMobileNoteListBulkSelection>
   displayPropertyKeys: string[]
+  emptyVault: boolean
   layoutProbe: MobileLayoutProbe
   neighborhood: MobileNeighborhood | null
   notes: MobileNote[]
+  onOpenVault?: () => void
   onSelectNote: (noteId: string) => void
   propertyDisplayModes?: Record<string, MobilePropertyDisplayMode> | null
   searchQuery?: string
   selectedNoteId: string | null
   typeDefinitions?: MobileTypeDefinitions
-}) {
+}
+
+function NoteListContent(props: NoteListContentProps) {
+  const {
+    activeNoteId,
+    bulkSelection,
+    displayPropertyKeys,
+    emptyVault,
+    layoutProbe,
+    neighborhood,
+    notes,
+    onOpenVault,
+    onSelectNote,
+    propertyDisplayModes,
+    searchQuery,
+    selectedNoteId,
+    typeDefinitions,
+  } = props
   if (neighborhood) {
     return (
       <NeighborhoodNoteList
@@ -158,7 +175,9 @@ function NoteListContent({
     )
   }
 
-  if (notes.length === 0) return <NoteListEmptyState searchQuery={searchQuery} />
+  if (notes.length === 0) {
+    return <NoteListEmptyState emptyVault={emptyVault} searchQuery={searchQuery} onOpenVault={onOpenVault} />
+  }
 
   return (
     <FlatList
@@ -421,18 +440,7 @@ function neighborhoodRow({
   })
 }
 
-function noteRow({
-  activeNoteId,
-  displayPropertyKeys,
-  forceSelected = false,
-  layoutProbe,
-  multiSelected = false,
-  note,
-  onBeginSelection,
-  onSelectNote,
-  propertyDisplayModes,
-  typeDefinitions,
-}: {
+type NoteRowProps = {
   activeNoteId: string | null
   displayPropertyKeys: string[]
   forceSelected?: boolean
@@ -443,7 +451,21 @@ function noteRow({
   onSelectNote: (noteId: string) => void
   propertyDisplayModes?: Record<string, MobilePropertyDisplayMode> | null
   typeDefinitions?: MobileTypeDefinitions
-}) {
+}
+
+function noteRow(props: NoteRowProps) {
+  const {
+    activeNoteId,
+    displayPropertyKeys,
+    forceSelected = false,
+    layoutProbe,
+    multiSelected = false,
+    note,
+    onBeginSelection,
+    onSelectNote,
+    propertyDisplayModes,
+    typeDefinitions,
+  } = props
   return (
     <MobileListRow
       chips={<NoteRowChips displayPropertyKeys={displayPropertyKeys} note={note} propertyDisplayModes={propertyDisplayModes} typeDefinitions={typeDefinitions} />}
@@ -488,11 +510,30 @@ function SearchPill({ searchQuery }: { searchQuery: string }) {
   )
 }
 
-function NoteListEmptyState({ searchQuery }: { searchQuery?: string }) {
+function NoteListEmptyState({
+  emptyVault,
+  onOpenVault,
+  searchQuery,
+}: {
+  emptyVault: boolean
+  onOpenVault?: () => void
+  searchQuery?: string
+}) {
+  const chrome = mobileNoteListEmptyStateChrome({ emptyVault, searchQuery })
+
   return (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyTitle}>{mobileText(searchQuery ? 'noteList.empty.noMatching' : 'noteList.empty.allOrganized')}</Text>
-      <Text style={styles.emptyText}>{mobileText('noteList.empty.noNotes')}</Text>
+      <Text style={styles.emptyTitle}>{mobileText(chrome.titleKey)}</Text>
+      {chrome.detailKey ? <Text style={styles.emptyText}>{mobileText(chrome.detailKey)}</Text> : null}
+      {chrome.action === 'openVault' && onOpenVault ? (
+        <MobileButton
+          icon={<FolderOpen color={mobileColors.text} size={16} />}
+          label={mobileText('status.vault.openLocal')}
+          style={styles.emptyAction}
+          testID="note-list-empty-open-vault"
+          onPress={onOpenVault}
+        />
+      ) : null}
     </View>
   )
 }
@@ -547,6 +588,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: mobileSpace.xl,
+  },
+  emptyAction: {
+    marginTop: mobileSpace.lg,
   },
   emptyText: {
     marginTop: mobileSpace.sm,

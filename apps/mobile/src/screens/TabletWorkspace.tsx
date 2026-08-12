@@ -409,25 +409,27 @@ function TabletSidebarHost({
   )
 }
 
-function TabletNoteListHost({
-  compactTablet,
-  gestures,
-  layoutProbe,
-  noteListNeighborhood,
-  noteListProperties,
-  noteListSubtitle,
-  noteListTitle,
-  notes,
-  onBulkArchiveNotes,
-  onBulkDeleteNotes,
-  onBulkOrganizeNotes,
-  onOpenCreateNote,
-  onOpenSearch,
-  onSelectNote,
-  searchQuery,
-  selectedNoteId,
-  snapshot,
-}: TabletPanelHostProps) {
+function TabletNoteListHost(props: TabletPanelHostProps) {
+  const {
+    compactTablet,
+    gestures,
+    layoutProbe,
+    noteListNeighborhood,
+    noteListProperties,
+    noteListSubtitle,
+    noteListTitle,
+    notes,
+    onBulkArchiveNotes,
+    onBulkDeleteNotes,
+    onBulkOrganizeNotes,
+    onOpenCreateNote,
+    onOpenNativeVault,
+    onOpenSearch,
+    onSelectNote,
+    searchQuery,
+    selectedNoteId,
+    snapshot,
+  } = props
   if (!gestures.renderNoteList) return null
 
   return (
@@ -440,6 +442,7 @@ function TabletNoteListHost({
           onOrganize: onBulkOrganizeNotes,
         }}
         displayPropertyKeys={noteListProperties}
+        emptyVault={snapshot.source?.totalNotes === 0}
         layoutProbe={layoutProbe}
         leading={(
           <MobileIconButton
@@ -460,6 +463,7 @@ function TabletNoteListHost({
         typeDefinitions={snapshot.typeDefinitions}
         onOpenCreateNote={onOpenCreateNote}
         onOpenSearch={onOpenSearch}
+        onOpenVault={onOpenNativeVault}
         onSelectNote={onSelectNote}
       />
     </View>
