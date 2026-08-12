@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import { PanResponder, type PanResponderGestureState } from 'react-native'
 
+import { shouldStartHorizontalSwipe } from './horizontalSwipePolicy'
+
 const MIN_DISTANCE = 56
 const MIN_CAPTURE_DISTANCE = 12
 const MAX_VERTICAL_DRIFT = 40
@@ -11,6 +13,7 @@ type HorizontalSwipeProgress = {
 }
 
 type HorizontalSwipeOptions = {
+  captureOnStart?: boolean
   disabled?: boolean
   onSwipeEnd?: (committed: boolean) => void
   onSwipeLeft?: () => void
@@ -19,10 +22,12 @@ type HorizontalSwipeOptions = {
 }
 
 type NormalizedHorizontalSwipeOptions = HorizontalSwipeOptions & {
+  captureOnStart: boolean
   disabled: boolean
 }
 
 export function useHorizontalSwipe({
+  captureOnStart = false,
   disabled = false,
   onSwipeEnd,
   onSwipeLeft,
@@ -30,13 +35,14 @@ export function useHorizontalSwipe({
   onSwipeRight,
 }: HorizontalSwipeOptions) {
   return useMemo(
-    () => createHorizontalSwipeHandlers({ disabled, onSwipeEnd, onSwipeLeft, onSwipeProgress, onSwipeRight }),
-    [disabled, onSwipeEnd, onSwipeLeft, onSwipeProgress, onSwipeRight],
+    () => createHorizontalSwipeHandlers({ captureOnStart, disabled, onSwipeEnd, onSwipeLeft, onSwipeProgress, onSwipeRight }),
+    [captureOnStart, disabled, onSwipeEnd, onSwipeLeft, onSwipeProgress, onSwipeRight],
   )
 }
 
 function createHorizontalSwipeHandlers(options: NormalizedHorizontalSwipeOptions) {
   return PanResponder.create({
+    onStartShouldSetPanResponder: () => shouldStartHorizontalSwipe(options),
     onMoveShouldSetPanResponder: (_, gesture) => shouldCapture(gesture, options.disabled),
     onMoveShouldSetPanResponderCapture: (_, gesture) => shouldCapture(gesture, options.disabled),
     onPanResponderRelease: (_, gesture) => releaseHorizontalSwipe(gesture, options),

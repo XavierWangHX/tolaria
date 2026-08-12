@@ -203,6 +203,7 @@ function usePropertiesPanelDrag({
   return {
     motionStyle,
     revealSwipe: useHorizontalSwipe({
+      captureOnStart: true,
       disabled: propertiesVisible,
       onSwipeEnd: handleEnd,
       onSwipeLeft: () => showProperties(true),
@@ -345,6 +346,7 @@ function useLeftChromeDrag({
   return {
     motionStyle,
     revealSwipe: useHorizontalSwipe({
+      captureOnStart: true,
       disabled: rendered,
       onSwipeEnd: handleEnd,
       onSwipeProgress: handleProgress,
