@@ -191,7 +191,9 @@ async function editStatusProperty(page: Page) {
 
 async function deleteProperty(page: Page, propertyKey: string) {
   await page.getByTestId(`property-row-${propertyKey}`).scrollIntoViewIfNeeded()
-  await page.getByTestId(`property-row-${propertyKey}`).getByLabel('Delete property').click()
+  await page.getByTestId(`property-row-${propertyKey}-edit`).click()
+  await expect(page.getByTestId('workspace-action-sheet-editProperty')).toBeVisible()
+  await page.getByTestId('workspace-property-delete-action').click()
   await expect(page.getByTestId(`property-row-${propertyKey}`)).toBeHidden()
 }
 
