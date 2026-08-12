@@ -246,4 +246,5 @@ proposed → active → superseded
 | [0187](0187-mobile-tentap-code-block-node.md) | Mobile TenTap code block node | active |
 | [0188](0188-mobile-tentap-table-node.md) | Mobile TenTap table node | active |
 | [0189](0189-mobile-tentap-aligned-table-metadata.md) | Mobile TenTap aligned table metadata | active |
-| [0190](0190-explicit-session-scoped-ios-vault-selection.md) | Explicit session-scoped iOS vault selection | active |
+| [0190](0190-explicit-session-scoped-ios-vault-selection.md) | Explicit session-scoped iOS vault selection | superseded -> [0191](0191-durable-ios-vault-bookmarks.md) |
+| [0191](0191-durable-ios-vault-bookmarks.md) | Durable iOS vault bookmarks | active |

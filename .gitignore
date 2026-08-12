@@ -89,3 +89,6 @@ CODE-HEALTH-REPORT.md
 !.codacy/tools-configs/semgrep.yaml
 !.codacy/tools-configs/trivy.yaml
 !.codacy/tools-configs/lizard.yaml
+# Expo native projects are generated locally by `expo prebuild`.
+apps/mobile/ios/
+apps/mobile/android/

@@ -50,11 +50,21 @@ export function mobileUiRequestedWorkspaceSource({
   requestedSource: string | null
   searchParams: URLSearchParams
 }): NonNullable<ReadOnlyWorkspaceRequest['source']> {
-  if (hasNativeWorkspace) return 'native'
-  if (hasPersistenceProbe(searchParams)) return 'native'
-  if (hasFixtureProbe(searchParams)) return 'fixture'
+  const qaSource = qaWorkspaceSource(requestedSource, searchParams)
+  if (qaSource) return qaSource
+  if (hasNativeWorkspace && !requestedSource) return 'native'
   if (!requestedSource) return unconfiguredWorkspaceSource(platform, searchParams)
   return configuredWorkspaceSources[requestedSource] ?? 'fixture'
+}
+
+function qaWorkspaceSource(
+  requestedSource: string | null,
+  searchParams: URLSearchParams,
+): NonNullable<ReadOnlyWorkspaceRequest['source']> | null {
+  if (hasPersistenceProbe(searchParams)) return 'native'
+  if (hasFixtureProbe(searchParams)) return 'fixture'
+  if (!requestedSource && searchParams.get('layoutProbe') === '1') return 'fixture'
+  return null
 }
 
 export function resolveMobileUiWorkspace({

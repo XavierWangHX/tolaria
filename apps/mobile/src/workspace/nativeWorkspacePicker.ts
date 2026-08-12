@@ -1,4 +1,9 @@
 import { mobileWorkspaceAlias } from './mobileWorkspaceAlias'
+import {
+  rememberNativeWorkspace,
+  restoreNativeWorkspace,
+  type NativeWorkspaceAccessModule,
+} from './nativeWorkspaceAccess'
 
 export type NativeWorkspaceSelection = {
   vaultAlias: string | null
@@ -25,10 +30,19 @@ let expoFileSystemModule: ExpoFileSystemPickerModule | null = null
 export async function pickNativeWorkspaceDirectory(
   initialUri?: string | null,
 ): Promise<NativeWorkspaceSelection | null> {
-  return pickNativeWorkspaceDirectoryWithPicker(
+  const selection = await pickNativeWorkspaceDirectoryWithPicker(
     expoFileSystem().Directory.pickDirectoryAsync,
     initialUri ?? undefined,
   )
+  if (selection) await rememberNativeWorkspace(selection.vaultRootUri)
+  return selection
+}
+
+export async function restoreNativeWorkspaceDirectory(
+  module?: NativeWorkspaceAccessModule | null,
+): Promise<NativeWorkspaceSelection | null> {
+  const uri = await restoreNativeWorkspace(module)
+  return uri ? nativeWorkspaceSelectionFromDirectory({ uri }) : null
 }
 
 export async function pickNativeWorkspaceDirectoryWithPicker(

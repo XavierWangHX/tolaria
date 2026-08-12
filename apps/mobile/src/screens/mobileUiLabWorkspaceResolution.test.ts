@@ -78,6 +78,15 @@ describe('mobileUiRequestedWorkspaceSource', () => {
     })).toBe('fixture')
   })
 
+  it('isolates deterministic editor probes from a remembered native vault', () => {
+    expect(mobileUiRequestedWorkspaceSource({
+      hasNativeWorkspace: true,
+      platform: 'ios',
+      requestedSource: null,
+      searchParams: new URLSearchParams('wysiwygAutocompleteProbe=1'),
+    })).toBe('fixture')
+  })
+
   it('uses the native repository for persistence probes', () => {
     expect(mobileUiRequestedWorkspaceSource({
       hasNativeWorkspace: false,
@@ -96,9 +105,27 @@ describe('mobileUiRequestedWorkspaceSource', () => {
     })).toBe('dev')
   })
 
+  it('keeps an explicitly configured real-vault source ahead of a remembered native vault', () => {
+    expect(mobileUiRequestedWorkspaceSource({
+      hasNativeWorkspace: true,
+      platform: 'ios',
+      requestedSource: 'dev-vault',
+      searchParams: new URLSearchParams('layoutProbe=1'),
+    })).toBe('dev')
+  })
+
   it('uses deterministic fixture data for an unconfigured layout probe', () => {
     expect(mobileUiRequestedWorkspaceSource({
       hasNativeWorkspace: false,
+      platform: 'ios',
+      requestedSource: null,
+      searchParams: new URLSearchParams('layoutProbe=1'),
+    })).toBe('fixture')
+  })
+
+  it('keeps an unconfigured layout probe isolated from a remembered native vault', () => {
+    expect(mobileUiRequestedWorkspaceSource({
+      hasNativeWorkspace: true,
       platform: 'ios',
       requestedSource: null,
       searchParams: new URLSearchParams('layoutProbe=1'),

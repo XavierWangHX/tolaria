@@ -9,9 +9,9 @@ import {
   type DevVaultWorkspaceState,
 } from '../workspace/devVaultWorkspaceRepository'
 import {
-  pickNativeWorkspaceDirectory,
   type NativeWorkspaceSelection,
 } from '../workspace/nativeWorkspacePicker'
+import { useNativeWorkspace } from '../workspace/useNativeWorkspace'
 import { initialMobileEditorStateFromMode } from './mobileEditorMode'
 import {
   nativeSourceSelectionProbeEnabled,
@@ -107,7 +107,11 @@ export function MobileUiLab() {
   const { width } = useWindowDimensions()
   const isWideEnoughForTablet = width >= 900
   const searchParams = useMobileUiSearchParams()
-  const [nativeWorkspace, setNativeWorkspace] = useState<NativeWorkspaceSelection | null>(null)
+  const {
+    open: openNativeWorkspace,
+    restorePending: nativeWorkspaceRestorePending,
+    selection: nativeWorkspace,
+  } = useNativeWorkspace()
   const workspacePersistenceProbe = nativeWorkspacePersistenceProbeEnabled(searchParams)
   const wysiwygPersistenceProbe = nativeWysiwygPersistenceProbeEnabled(searchParams)
   const workspaceSource = useMobileUiWorkspaceSource({
@@ -139,12 +143,9 @@ export function MobileUiLab() {
     wysiwygPersistenceProbe,
   })
   const handleOpenNativeVault = useCallback(async () => {
-    const selection = await pickNativeWorkspaceDirectory(repositoryRequest.vaultRootUri)
-    if (selection) setNativeWorkspace(selection)
-  }, [repositoryRequest.vaultRootUri])
-  const handleTableOfContentsScrollProof = useCallback((proof: NativeTableOfContentsProof) => {
-    console.info(nativeTableOfContentsLogLine(proof))
-  }, [])
+    await openNativeWorkspace(repositoryRequest.vaultRootUri)
+  }, [openNativeWorkspace, repositoryRequest.vaultRootUri])
+  const handleTableOfContentsScrollProof = useTableOfContentsScrollProof()
 
   useLayoutEffect(() => {
     setMobileLayoutMetricSinkUrl(metricSinkUrl)
@@ -158,10 +159,8 @@ export function MobileUiLab() {
     snapshot,
     source,
   })
-
-  if (source === 'dev' && devVault.status !== 'ready') {
-    return <DevVaultStatusScreen state={devVault} url={devVaultUrl} />
-  }
+  const statusScreen = mobileUiStatusScreen({ devVault, devVaultUrl, nativeWorkspaceRestorePending, source })
+  if (statusScreen) return statusScreen
 
   if (isWideEnoughForTablet) {
     return (
@@ -225,6 +224,32 @@ export function MobileUiLab() {
       wysiwygMutationProbe={qa.wysiwygMutationProbe}
     />
   )
+}
+
+function useTableOfContentsScrollProof() {
+  return useCallback((proof: NativeTableOfContentsProof) => {
+    console.info(nativeTableOfContentsLogLine(proof))
+  }, [])
+}
+
+function mobileUiStatusScreen({
+  devVault,
+  devVaultUrl,
+  nativeWorkspaceRestorePending,
+  source,
+}: {
+  devVault: DevVaultLoadState
+  devVaultUrl: string | null
+  nativeWorkspaceRestorePending: boolean
+  source: NonNullable<ReadOnlyWorkspaceRequest['source']>
+}) {
+  if (nativeWorkspaceRestorePending) {
+    return <DevVaultStatusScreen state={{ status: 'loading' }} url={null} />
+  }
+  if (source === 'dev' && devVault.status !== 'ready') {
+    return <DevVaultStatusScreen state={devVault} url={devVaultUrl} />
+  }
+  return null
 }
 
 function currentScenarioId(searchParams: URLSearchParams) {

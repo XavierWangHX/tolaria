@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   nativeWorkspaceSelectionFromDirectory,
   pickNativeWorkspaceDirectoryWithPicker,
+  restoreNativeWorkspaceDirectory,
 } from './nativeWorkspacePicker'
+import type { NativeWorkspaceAccessModule } from './nativeWorkspaceAccess'
 
 describe('native workspace picker', () => {
   it('builds native repository requests from picked directories', () => {
@@ -30,5 +32,18 @@ describe('native workspace picker', () => {
     await expect(pickNativeWorkspaceDirectoryWithPicker(async () => {
       throw new Error('cancelled')
     })).resolves.toBeNull()
+  })
+
+  it('restores a bookmarked native workspace without reopening the picker', async () => {
+    const module: NativeWorkspaceAccessModule = {
+      rememberWorkspace: vi.fn(),
+      restoreWorkspace: vi.fn().mockResolvedValue('file:///Users/luca/Work%20Vault/'),
+    }
+
+    await expect(restoreNativeWorkspaceDirectory(module)).resolves.toEqual({
+      vaultAlias: 'work-vault',
+      vaultLabel: 'Work Vault',
+      vaultRootUri: 'file:///Users/luca/Work%20Vault/',
+    })
   })
 })
