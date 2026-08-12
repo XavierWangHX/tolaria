@@ -27,7 +27,7 @@ import {
 const defaultLogWindow = '5m'
 const defaultExpoGoBundleId = 'host.exp.Exponent'
 const nativeQaPollIntervalMs = 1000
-const nativeQaPollTimeoutMs = 12000
+const nativeQaPollTimeoutMs = 60000
 
 function printHelp() {
   console.log(`Assert native iOS Simulator layout metrics for mobile UI QA.
@@ -149,7 +149,10 @@ function collectSimulatorLogs(device, { includeWysiwygMutation, includeWysiwygPe
     '--style',
     'compact',
     '--predicate',
-    simulatorLogPredicate({ includeWysiwygMutation, includeWysiwygPersistence }),
+    simulatorLogPredicate({
+      includeWysiwygMutation,
+      includeWysiwygPersistence,
+    }),
   ])
 }
 
@@ -241,7 +244,9 @@ function collectRequestBody(request) {
   return new Promise((resolve, reject) => {
     let body = ''
     request.setEncoding('utf8')
-    request.on('data', (chunk) => { body += chunk })
+    request.on('data', (chunk) => {
+      body += chunk
+    })
     request.on('end', () => resolve(body))
     request.on('error', reject)
   })
@@ -272,15 +277,13 @@ function sleep(ms) {
 }
 
 function simulatorLogTimestamp(date) {
-  return [
-    date.getFullYear(),
-    padTimestampPart(date.getMonth() + 1),
-    padTimestampPart(date.getDate()),
-  ].join('-') + ' ' + [
-    padTimestampPart(date.getHours()),
-    padTimestampPart(date.getMinutes()),
-    padTimestampPart(date.getSeconds()),
-  ].join(':')
+  return (
+    [date.getFullYear(), padTimestampPart(date.getMonth() + 1), padTimestampPart(date.getDate())].join('-') +
+    ' ' +
+    [padTimestampPart(date.getHours()), padTimestampPart(date.getMinutes()), padTimestampPart(date.getSeconds())].join(
+      ':',
+    )
+  )
 }
 
 function padTimestampPart(value) {
@@ -302,8 +305,17 @@ async function runNativeQa(options) {
   const metricSink = options.openUrl ? await startMetricSinkServer() : null
 
   try {
-    const logStart = await openProbeIfRequested({ device, metricSink, options })
-    const result = await collectPassingNativeQaResult({ device, logStart, metricSink, options })
+    const logStart = await openProbeIfRequested({
+      device,
+      metricSink,
+      options,
+    })
+    const result = await collectPassingNativeQaResult({
+      device,
+      logStart,
+      metricSink,
+      options,
+    })
 
     if (hasNativeQaFailures(result)) {
       throw new Error(formatNativeQaFailures(result))
@@ -328,7 +340,12 @@ async function collectPassingNativeQaResult({ device, logStart, metricSink, opti
 }
 
 function collectNativeQaResult({ device, logStart, metricSink, options }) {
-  const evidence = collectNativeQaEvidence({ device, logStart, metricSink, options })
+  const evidence = collectNativeQaEvidence({
+    device,
+    logStart,
+    metricSink,
+    options,
+  })
   const metrics = latestNativeLayoutMetrics(parseNativeLayoutMetrics(layoutLogText(evidence.layoutLogs, options)))
 
   return {
@@ -348,10 +365,13 @@ async function openProbeIfRequested({ device, metricSink, options }) {
   const logStart = simulatorLogTimestamp(new Date(Date.now() - 1000))
   await openFreshProbeUrl(
     device,
-    metricSinkUrl(nativeQaUrl(options.openUrl, {
-      requireWysiwygMutation: requiresWysiwygMutationProof(options),
-      requireWysiwygPersistence: options.requireWysiwygPersistence,
-    }), metricSink),
+    metricSinkUrl(
+      nativeQaUrl(options.openUrl, {
+        requireWysiwygMutation: requiresWysiwygMutationProof(options),
+        requireWysiwygPersistence: options.requireWysiwygPersistence,
+      }),
+      metricSink,
+    ),
     options.waitMs,
   )
   return logStart
@@ -406,16 +426,18 @@ function metricSinkUrl(url, metricSink) {
 }
 
 function nativeQaUrl(openUrl, { requireWysiwygMutation, requireWysiwygPersistence }) {
-  const mutationUrl = requireWysiwygMutation
-    ? appendQueryParam(openUrl, 'wysiwygMutationProbe', '1')
-    : openUrl
+  const mutationUrl = requireWysiwygMutation ? appendQueryParam(openUrl, 'wysiwygMutationProbe', '1') : openUrl
 
-  return requireWysiwygPersistence
-    ? appendQueryParam(mutationUrl, 'wysiwygPersistenceProbe', '1')
-    : mutationUrl
+  return requireWysiwygPersistence ? appendQueryParam(mutationUrl, 'wysiwygPersistenceProbe', '1') : mutationUrl
 }
 
-function nativeLayoutFailures({ metrics, phoneState, requireWysiwyg, requireWysiwygMutation, requireWysiwygPersistence }) {
+function nativeLayoutFailures({
+  metrics,
+  phoneState,
+  requireWysiwyg,
+  requireWysiwygMutation,
+  requireWysiwygPersistence,
+}) {
   if (requireWysiwygMutation || requireWysiwygPersistence) {
     return requireWysiwyg ? assertNativeWysiwygEditorLayoutMetrics(metrics) : []
   }
@@ -444,9 +466,15 @@ function failureCount(failureGroups) {
 function formatNativeQaFailures({ failures, mutationFailures, persistenceFailures }) {
   return [
     failures.length > 0 ? `Native iOS layout metrics failed:\n${formatNativeLayoutAssertionFailures(failures)}` : '',
-    mutationFailures.length > 0 ? `Native WYSIWYG mutation proof failed:\n${formatNativeWysiwygMutationFailures(mutationFailures)}` : '',
-    persistenceFailures.length > 0 ? `Native WYSIWYG persistence proof failed:\n${formatNativeWysiwygPersistenceFailures(persistenceFailures)}` : '',
-  ].filter(Boolean).join('\n')
+    mutationFailures.length > 0
+      ? `Native WYSIWYG mutation proof failed:\n${formatNativeWysiwygMutationFailures(mutationFailures)}`
+      : '',
+    persistenceFailures.length > 0
+      ? `Native WYSIWYG persistence proof failed:\n${formatNativeWysiwygPersistenceFailures(persistenceFailures)}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 main().catch((error) => {

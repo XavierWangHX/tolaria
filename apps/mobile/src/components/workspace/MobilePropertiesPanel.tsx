@@ -1,34 +1,51 @@
-import type { ReactNode } from 'react'
 import { Plus, WarningCircle, X } from 'phosphor-react-native'
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native'
-import { Text } from '../ui/text'
+import type { ReactNode } from 'react'
+import { Pressable, ScrollView, View } from 'react-native'
 import { mobileCopy, mobileText } from '../../i18n/mobileText'
-import { probeProps, useMobileLayoutProbe, type MobileLayoutProbe } from '../../qa/mobileLayoutProbe'
+import { type MobileLayoutProbe, probeProps, useMobileLayoutProbe } from '../../qa/mobileLayoutProbe'
+import { desktopRelationshipParity } from '../../ui/desktopParity'
 import { MobileChip } from '../../ui/MobileChip'
 import { MobilePanel, MobileToolbar, MobileToolbarTitle } from '../../ui/MobilePanel'
 import { MobilePropertyRow } from '../../ui/MobilePropertyRow'
-import { desktopPanelParity, desktopPropertyParity, desktopRelationshipParity } from '../../ui/desktopParity'
-import { mobileColors, mobileRadius, mobileSpace, mobileType } from '../../ui/tokens'
-import { resolveMobileMissingTypeName } from '../../workspace/mobileMissingType'
-import { mobilePropertyDisplay, type MobilePropertyDisplay } from '../../workspace/mobilePropertyDisplay'
-import type { MobileNote, MobileProperty, MobilePropertyDisplayMode, MobilePropertyValue, MobileRelationship, MobileTone, MobileTypeDefinitions } from '../../workspace/mobileWorkspaceModel'
-import type { MobileNeighborhoodGroup } from '../../workspace/mobileNeighborhood'
+import { mobileColors } from '../../ui/tokens'
+import { mobileFrontmatterState, needsMobileFrontmatterNotice } from '../../workspace/mobileFrontmatterState'
 import {
-  mobileInspectorPropertySlots,
-  mobileInspectorRelationshipSlots,
   type MobileInspectorPropertySlot,
   type MobileInspectorRelationshipSlot,
+  mobileInspectorPropertySlots,
+  mobileInspectorRelationshipSlots,
 } from '../../workspace/mobileInspectorSchema'
-import { MobileTypeIcon } from './MobileWorkspaceIcons'
-import { chipTone, noteTypeColor, noteTypeSoftColor, statusTone, tagTone } from './mobileWorkspaceTone'
+import { resolveMobileMissingTypeName } from '../../workspace/mobileMissingType'
+import type { MobileNeighborhoodGroup } from '../../workspace/mobileNeighborhood'
+import { type MobilePropertyDisplay, mobilePropertyDisplay } from '../../workspace/mobilePropertyDisplay'
+import type {
+  MobileNote,
+  MobileProperty,
+  MobilePropertyDisplayMode,
+  MobilePropertyValue,
+  MobileRelationship,
+  MobileTone,
+  MobileTypeDefinitions,
+} from '../../workspace/mobileWorkspaceModel'
+import { Text } from '../ui/text'
 import { MobileFrontmatterStateNotice } from './MobileFrontmatterStateNotice'
 import {
+  actionStyles,
+  emptyStateStyles,
+  panelStyles,
+  propertyDisplayStyles,
+  propertyStyles,
+  referenceStyles,
+  relationshipStyles,
+  typeStyles,
+} from './MobilePropertiesPanel.styles'
+import {
   mobileInspectorPlaceholderActionLabel,
-  mobileInspectorPlaceholderRowLayoutContract,
   mobileInspectorReferenceRowLayoutContract,
   mobileRelationshipValueMetricSegments,
 } from './MobilePropertiesPanelModel'
-import { mobileFrontmatterState, needsMobileFrontmatterNotice } from '../../workspace/mobileFrontmatterState'
+import { MobileTypeIcon } from './MobileWorkspaceIcons'
+import { chipTone, noteTypeColor, noteTypeSoftColor, statusTone, tagTone } from './mobileWorkspaceTone'
 
 export function MobilePropertiesPanel({
   compact,
@@ -74,7 +91,11 @@ export function MobilePropertiesPanel({
   return (
     <MobilePanel
       {...probeProps(propertyLayoutProbe.probe, 'properties.panel')}
-      style={[panelStyles.panel, compact ? panelStyles.panelCompact : null, fullWidth ? panelStyles.panelFullWidth : null]}
+      style={[
+        panelStyles.panel,
+        compact ? panelStyles.panelCompact : null,
+        fullWidth ? panelStyles.panelFullWidth : null,
+      ]}
       testID="properties-panel"
     >
       <MobileToolbar testID="properties-toolbar">
@@ -82,7 +103,7 @@ export function MobilePropertiesPanel({
       </MobileToolbar>
       <ScrollView
         {...probeProps(propertyLayoutProbe.probe, 'properties.scroll')}
-        contentContainerStyle={panelStyles.content}
+        contentContainerStyle={[panelStyles.content, note ? null : panelStyles.emptyContent]}
         keyboardShouldPersistTaps="handled"
       >
         {note ? (
@@ -104,7 +125,9 @@ export function MobilePropertiesPanel({
             referenceGroups={referenceGroups}
             typeDefinitions={typeDefinitions}
           />
-        ) : <PropertiesEmptyState />}
+        ) : (
+          <PropertiesEmptyState />
+        )}
       </ScrollView>
     </MobilePanel>
   )
@@ -129,24 +152,8 @@ type NotePropertiesProps = {
   typeDefinitions?: MobileTypeDefinitions
 }
 
-function NoteProperties({
-  layoutProbe,
-  note,
-  onAddProperty,
-  onAddRelationship,
-  onDeleteProperty,
-  onEditProperty,
-  onEnterNeighborhood,
-  onFixInvalidFrontmatter,
-  onInitializeProperties,
-  onCreateMissingType,
-  onOpenChangeNoteType,
-  onRemoveRelationship,
-  onSelectNote,
-  propertyDisplayModes,
-  referenceGroups,
-  typeDefinitions,
-}: NotePropertiesProps) {
+function NoteProperties(props: NotePropertiesProps) {
+  const { layoutProbe, note, onFixInvalidFrontmatter, onInitializeProperties, onSelectNote, referenceGroups, typeDefinitions } = props
   const frontmatterState = mobileFrontmatterState(note)
   const propertySlots = mobileInspectorPropertySlots(note, typeDefinitions)
   const relationshipSlots = mobileInspectorRelationshipSlots(note, typeDefinitions)
@@ -172,6 +179,19 @@ function NoteProperties({
 
   return (
     <>
+      <StandardPropertyRows missingTypeName={missingTypeName} props={props} />
+      <CustomPropertyRows propertySlots={propertySlots} props={props} />
+      <RelationshipPropertyRows relationshipSlots={relationshipSlots} props={props} />
+      <PropertyActionsAndReferences props={props} />
+    </>
+  )
+}
+
+function StandardPropertyRows({ missingTypeName, props }: { missingTypeName: string | null; props: NotePropertiesProps }) {
+  const { layoutProbe, note, onCreateMissingType, onEditProperty, onOpenChangeNoteType } = props
+
+  return (
+    <>
       <TypePropertyRow
         layoutProbe={layoutProbe}
         missingTypeName={missingTypeName}
@@ -180,22 +200,43 @@ function NoteProperties({
         onOpenChangeNoteType={onOpenChangeNoteType}
       />
       {note.status ? (
-        <MobilePropertyRow label={mobileText('noteList.sort.status')} testID="property-row-status" value={(
-          <EditableChipValue
-            label={note.status}
-            testID="property-row-status-edit"
-            tone={statusTone(note.status)}
-            onPress={() => onEditProperty(note.id, 'Status', note.status)}
-          />
-        )} layoutProbe={layoutProbe} layoutProbeId="properties.row.status" />
+        <MobilePropertyRow
+          label={mobileText('noteList.sort.status')}
+          testID="property-row-status"
+          value={
+            <EditableChipValue
+              label={note.status}
+              testID="property-row-status-edit"
+              tone={statusTone(note.status)}
+              onPress={() => onEditProperty(note.id, 'Status', note.status)}
+            />
+          }
+          layoutProbe={layoutProbe}
+          layoutProbeId="properties.row.status"
+        />
       ) : null}
       <MobilePropertyRow label={mobileText('noteList.sort.created')} layoutProbe={layoutProbe} layoutProbeId="properties.row.created" testID="property-row-created" value={note.created} />
       <MobilePropertyRow label={mobileCopy.modified} layoutProbe={layoutProbe} layoutProbeId="properties.row.modified" testID="property-row-modified" value={note.modified} />
-      <MobilePropertyRow label={mobileText('inspector.properties.workspace')} layoutProbe={layoutProbe} layoutProbeId="properties.row.workspace" testID="property-row-workspace" value={<WorkspaceBadge label={note.workspace} />} />
+      <MobilePropertyRow
+        label={mobileText('inspector.properties.workspace')}
+        layoutProbe={layoutProbe}
+        layoutProbeId="properties.row.workspace"
+        testID="property-row-workspace"
+        value={<WorkspaceBadge label={note.workspace} />}
+      />
       <PropertySection label="Tags" layoutProbe={layoutProbe} layoutProbeId="properties.section.tags" testID="property-section-tags">
         <EditableTagsValue labels={note.tags} onPress={() => onEditProperty(note.id, 'tags', note.tags)} />
       </PropertySection>
       <MobilePropertyRow label="Links" layoutProbe={layoutProbe} layoutProbeId="properties.row.links" testID="property-row-links" value={`${note.links}`} />
+    </>
+  )
+}
+
+function CustomPropertyRows({ propertySlots, props }: { propertySlots: MobileInspectorPropertySlot[]; props: NotePropertiesProps }) {
+  const { layoutProbe, note, onAddProperty, onDeleteProperty, onEditProperty, propertyDisplayModes } = props
+
+  return (
+    <>
       {note.icon ? (
         <EditablePropertyRow
           layoutProbe={layoutProbe}
@@ -217,13 +258,17 @@ function NoteProperties({
         />
       ))}
       {propertySlots.map((slot) => (
-        <PlaceholderPropertyRow
-          key={`${slot.source}:${slot.key}`}
-          layoutProbe={layoutProbe}
-          slot={slot}
-          onPress={() => onAddProperty(slot.key)}
-        />
+        <PlaceholderPropertyRow key={`${slot.source}:${slot.key}`} layoutProbe={layoutProbe} slot={slot} onPress={() => onAddProperty(slot.key)} />
       ))}
+    </>
+  )
+}
+
+function RelationshipPropertyRows({ relationshipSlots, props }: { relationshipSlots: MobileInspectorRelationshipSlot[]; props: NotePropertiesProps }) {
+  const { layoutProbe, note, onAddRelationship, onEnterNeighborhood, onRemoveRelationship, onSelectNote, typeDefinitions } = props
+
+  return (
+    <>
       {note.relationships.map((relationship) => (
         <PropertySection
           key={`${relationship.kind}-${relationship.label ?? relationship.values.map((value) => value.title).join('-')}`}
@@ -244,33 +289,20 @@ function NoteProperties({
         </PropertySection>
       ))}
       {relationshipSlots.map((slot) => (
-        <PlaceholderRelationshipSection
-          key={`${slot.source}:${slot.key}`}
-          layoutProbe={layoutProbe}
-          slot={slot}
-          onPress={() => onAddRelationship(slot.key)}
-        />
+        <PlaceholderRelationshipSection key={`${slot.source}:${slot.key}`} layoutProbe={layoutProbe} slot={slot} onPress={() => onAddRelationship(slot.key)} />
       ))}
-      <PropertyActionRow
-        label={mobileText('inspector.properties.addProperty')}
-        layoutProbe={layoutProbe}
-        layoutProbeId="properties.action.add-property"
-        testID="property-action-add-property"
-        onPress={() => onAddProperty()}
-      />
-      <PropertyActionRow
-        label={mobileText('inspector.relationship.addRelationship')}
-        layoutProbe={layoutProbe}
-        layoutProbeId="properties.action.add-relationship"
-        testID="property-action-add-relationship"
-        onPress={() => onAddRelationship()}
-      />
-      <ReferenceGroups
-        groups={referenceGroups}
-        layoutProbe={layoutProbe}
-        typeDefinitions={typeDefinitions}
-        onSelectNote={onSelectNote}
-      />
+    </>
+  )
+}
+
+function PropertyActionsAndReferences({ props }: { props: NotePropertiesProps }) {
+  const { layoutProbe, onAddProperty, onAddRelationship, onSelectNote, referenceGroups, typeDefinitions } = props
+
+  return (
+    <>
+      <PropertyActionRow label={mobileText('inspector.properties.addProperty')} layoutProbe={layoutProbe} layoutProbeId="properties.action.add-property" testID="property-action-add-property" onPress={() => onAddProperty()} />
+      <PropertyActionRow label={mobileText('inspector.relationship.addRelationship')} layoutProbe={layoutProbe} layoutProbeId="properties.action.add-relationship" testID="property-action-add-relationship" onPress={() => onAddRelationship()} />
+      <ReferenceGroups groups={referenceGroups} layoutProbe={layoutProbe} typeDefinitions={typeDefinitions} onSelectNote={onSelectNote} />
     </>
   )
 }
@@ -289,32 +321,29 @@ function TypePropertyRow({
   onOpenChangeNoteType: () => void
 }) {
   return (
-    <MobilePropertyRow label="Type" testID="property-row-type" value={(
-      <View style={typeStyles.value}>
-        <EditableChipValue
-          label={note.type}
-          testID="property-row-type-edit"
-          tone={chipTone(note.typeTone)}
-          onPress={onOpenChangeNoteType}
-        />
-        {missingTypeName ? (
-          <MissingTypeButton
-            typeName={missingTypeName}
-            onPress={() => onCreateMissingType(missingTypeName)}
+    <MobilePropertyRow
+      label="Type"
+      testID="property-row-type"
+      value={
+        <View style={typeStyles.value}>
+          <EditableChipValue
+            label={note.type}
+            testID="property-row-type-edit"
+            tone={chipTone(note.typeTone)}
+            onPress={onOpenChangeNoteType}
           />
-        ) : null}
-      </View>
-    )} layoutProbe={layoutProbe} layoutProbeId="properties.row.type" />
+          {missingTypeName ? (
+            <MissingTypeButton typeName={missingTypeName} onPress={() => onCreateMissingType(missingTypeName)} />
+          ) : null}
+        </View>
+      }
+      layoutProbe={layoutProbe}
+      layoutProbeId="properties.row.type"
+    />
   )
 }
 
-function MissingTypeButton({
-  onPress,
-  typeName,
-}: {
-  onPress: () => void
-  typeName: string
-}) {
+function MissingTypeButton({ onPress, typeName }: { onPress: () => void; typeName: string }) {
   const label = mobileText('inspector.properties.missingTypeAria').replace('{type}', typeName)
 
   return (
@@ -352,21 +381,10 @@ function EditableChipValue({
   )
 }
 
-function EditableTagsValue({
-  labels,
-  onPress,
-}: {
-  labels: string[]
-  onPress: () => void
-}) {
+function EditableTagsValue({ labels, onPress }: { labels: string[]; onPress: () => void }) {
   if (labels.length > 0) {
     return (
-      <Pressable
-        accessibilityLabel="Tags"
-        accessibilityRole="button"
-        testID="property-tags-edit"
-        onPress={onPress}
-      >
+      <Pressable accessibilityLabel="Tags" accessibilityRole="button" testID="property-tags-edit" onPress={onPress}>
         <TagWrap labels={labels} />
       </Pressable>
     )
@@ -401,10 +419,15 @@ function EditablePropertyRow({
   property: MobileProperty
 }) {
   const testId = `property-row-${testIdSegment(property.key)}`
-  const display = mobilePropertyDisplay(property.key, property.value, {
-    false: mobileText('inspector.properties.no'),
-    true: mobileText('inspector.properties.yes'),
-  }, propertyDisplayModes)
+  const display = mobilePropertyDisplay(
+    property.key,
+    property.value,
+    {
+      false: mobileText('inspector.properties.no'),
+      true: mobileText('inspector.properties.yes'),
+    },
+    propertyDisplayModes,
+  )
 
   return (
     <MobilePropertyRow
@@ -412,7 +435,7 @@ function EditablePropertyRow({
       layoutProbe={layoutProbe}
       layoutProbeId={`properties.row.${testIdSegment(property.key)}`}
       testID={testId}
-      value={(
+      value={
         <Pressable
           accessibilityLabel={`${property.label}: ${display.text}`}
           accessibilityRole="button"
@@ -431,7 +454,7 @@ function EditablePropertyRow({
             <X color={mobileColors.textMuted} size={desktopRelationshipParity.removeIconSize} weight="bold" />
           </Pressable>
         </Pressable>
-      )}
+      }
     />
   )
 }
@@ -440,7 +463,9 @@ function EditablePropertyValueDisplay({ display }: { display: MobilePropertyDisp
   if (display.kind === 'list' && display.listItems.length > 0) {
     return (
       <View style={propertyDisplayStyles.listValue}>
-        {display.listItems.map((item) => <MobileChip key={item} label={item} tone={tagTone(item)} />)}
+        {display.listItems.map((item) => (
+          <MobileChip key={item} label={item} tone={tagTone(item)} />
+        ))}
       </View>
     )
   }
@@ -450,33 +475,45 @@ function EditablePropertyValueDisplay({ display }: { display: MobilePropertyDisp
   }
 
   if (display.kind === 'color') {
-    return (
-      <View style={propertyDisplayStyles.colorValue}>
-        <View style={[propertyDisplayStyles.colorSwatch, display.colorValue ? { backgroundColor: display.colorValue } : null]} />
-        <Text numberOfLines={1} style={propertyStyles.editableText}>{display.text}</Text>
-      </View>
-    )
+    return <EditableColorValue colorValue={display.colorValue} text={display.text} />
   }
 
   return (
-    <Text
-      numberOfLines={1}
-      style={[
-        propertyStyles.editableText,
-        display.kind === 'number' ? propertyDisplayStyles.numberText : null,
-        display.kind === 'url' ? propertyDisplayStyles.urlText : null,
-      ]}
-    >
+    <Text numberOfLines={1} style={editablePropertyTextStyle(display.kind)}>
       {display.text}
     </Text>
   )
 }
 
+function EditableColorValue({ colorValue, text }: { colorValue?: string; text: string }) {
+  return (
+    <View style={propertyDisplayStyles.colorValue}>
+      <View
+        style={[
+          propertyDisplayStyles.colorSwatch,
+          colorValue ? { backgroundColor: colorValue } : null,
+        ]}
+      />
+      <Text numberOfLines={1} style={propertyStyles.editableText}>
+        {text}
+      </Text>
+    </View>
+  )
+}
+
+function editablePropertyTextStyle(kind: MobilePropertyDisplay['kind']) {
+  return [
+    propertyStyles.editableText,
+    kind === 'number' ? propertyDisplayStyles.numberText : null,
+    kind === 'url' ? propertyDisplayStyles.urlText : null,
+  ]
+}
+
 function PropertiesEmptyState() {
   return (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyTitle}>{mobileText('inspector.empty.noNoteSelected')}</Text>
-      <Text style={styles.emptyText}>{mobileText('inspector.empty.noProperties')}</Text>
+    <View style={emptyStateStyles.emptyState}>
+      <Text style={emptyStateStyles.emptyTitle}>{mobileText('inspector.empty.noNoteSelected')}</Text>
+      <Text style={emptyStateStyles.emptyText}>{mobileText('inspector.empty.noProperties')}</Text>
     </View>
   )
 }
@@ -501,16 +538,14 @@ function PlaceholderPropertyRow({
       layoutProbeId={`properties.placeholder.${testIdSegment(slot.key)}`}
       testID={testID}
       onPress={onPress}
-      value={(
-        <View
-          pointerEvents="none"
-          style={propertyStyles.placeholderAddValue}
-          testID={`${testID}-add`}
-        >
+      value={
+        <View pointerEvents="none" style={propertyStyles.placeholderAddValue} testID={`${testID}-add`}>
           <Plus color={mobileColors.textFaint} size={14} />
-          <Text numberOfLines={1} style={propertyStyles.placeholderValue}>{mobileInspectorPlaceholderActionLabel('property')}</Text>
+          <Text numberOfLines={1} style={propertyStyles.placeholderValue}>
+            {mobileInspectorPlaceholderActionLabel('property')}
+          </Text>
         </View>
-      )}
+      }
     />
   )
 }
@@ -541,7 +576,13 @@ function PropertySection({
       >
         {label}
       </Text>
-      <View {...propertyProbe(layoutProbe, metricId, 'value')} style={propertyStyles.sectionValue} testID={testID ? `${testID}-value` : undefined}>{children}</View>
+      <View
+        {...propertyProbe(layoutProbe, metricId, 'value')}
+        style={propertyStyles.sectionValue}
+        testID={testID ? `${testID}-value` : undefined}
+      >
+        {children}
+      </View>
     </View>
   )
 }
@@ -567,7 +608,7 @@ function PropertyActionRow({
       {...propertyProbe(layoutProbe, metricId, 'row')}
       accessibilityLabel={label}
       accessibilityRole="button"
-      style={({ pressed }) => [actionStyles.row, pressed ? actionStyles.rowPressed : null]}
+      style={actionStyles.row}
       testID={testID}
       onPress={onPress}
     >
@@ -575,7 +616,9 @@ function PropertyActionRow({
         <View style={actionStyles.iconSlot}>
           <Plus color={mobileColors.textFaint} size={14} />
         </View>
-        <Text numberOfLines={1} style={actionStyles.text}>{visibleLabel}</Text>
+        <Text numberOfLines={1} style={actionStyles.text}>
+          {visibleLabel}
+        </Text>
       </View>
       <View {...propertyProbe(layoutProbe, metricId, 'value')} pointerEvents="none" style={actionStyles.value} />
     </Pressable>
@@ -605,7 +648,10 @@ function PlaceholderRelationshipSection({
       <Pressable
         accessibilityLabel={mobileText('inspector.relationship.add')}
         accessibilityRole="button"
-        style={({ pressed }) => [propertyStyles.placeholderRelationshipButton, pressed ? propertyStyles.editableValuePressed : null]}
+        style={({ pressed }) => [
+          propertyStyles.placeholderRelationshipButton,
+          pressed ? propertyStyles.editableValuePressed : null,
+        ]}
         testID={`${testID}-add`}
         onPress={onPress}
       >
@@ -803,7 +849,9 @@ function relationshipHeading(relationship: MobileRelationship): string {
 function TagWrap({ labels }: { labels: string[] }) {
   return (
     <View style={propertyStyles.tagWrap} testID="property-tags-wrap">
-      {labels.map((label) => <MobileChip key={label} label={label} tone={tagTone(label)} />)}
+      {labels.map((label) => (
+        <MobileChip key={label} label={label} tone={tagTone(label)} />
+      ))}
     </View>
   )
 }
@@ -820,331 +868,13 @@ function relationshipTextTone(tone: MobileTone) {
   return { color: noteTypeColor(tone) }
 }
 
-function relationshipValueSegment(
-  value: MobileRelationship['values'][number],
-  index: number,
-) {
+function relationshipValueSegment(value: MobileRelationship['values'][number], index: number) {
   return mobileRelationshipValueMetricSegments([value])[0] ?? `relationship-${index + 1}`
 }
 
 function testIdSegment(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 }
-
-const panelStyles = StyleSheet.create({
-  content: {
-    flexGrow: 1,
-    padding: desktopPropertyParity.panelPadding,
-  },
-  panel: {
-    alignSelf: 'stretch',
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    height: '100%',
-    width: desktopPanelParity.inspectorWidth,
-  },
-  panelCompact: {
-    width: 280,
-  },
-  panelFullWidth: {
-    width: '100%',
-  },
-})
-
-const styles = StyleSheet.create({
-  emptyState: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: mobileSpace.xxl,
-  },
-  emptyText: {
-    marginTop: mobileSpace.sm,
-    color: mobileColors.textMuted,
-    fontSize: mobileType.body,
-    textAlign: 'center',
-  },
-  emptyTitle: {
-    color: mobileColors.text,
-    fontSize: mobileType.title,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-})
-
-const relationshipStyles = StyleSheet.create({
-  remove: {
-    minHeight: desktopRelationshipParity.removeIconSize,
-    minWidth: desktopRelationshipParity.removeIconSize,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: mobileRadius.pill,
-  },
-  row: {
-    minHeight: desktopPropertyParity.rowMinHeight,
-    alignItems: 'center',
-    flexDirection: 'row',
-    borderRadius: desktopRelationshipParity.rowRadius,
-    paddingHorizontal: desktopRelationshipParity.rowPaddingHorizontal,
-    paddingVertical: desktopRelationshipParity.rowPaddingVertical,
-    width: '100%',
-  },
-  openTarget: {
-    minWidth: 0,
-    flex: 1,
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: desktopRelationshipParity.rowGap,
-  },
-  text: {
-    flex: 1,
-    fontSize: desktopRelationshipParity.textFontSize,
-    fontWeight: desktopRelationshipParity.textFontWeight,
-  },
-  values: {
-    alignItems: 'stretch',
-    gap: mobileSpace.xs,
-  },
-})
-
-const referenceStyles = StyleSheet.create({
-  container: {
-    marginTop: mobileSpace.sm,
-    borderTopColor: mobileColors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  row: {
-    minHeight: mobileInspectorReferenceRowLayoutContract.minHeight,
-    minWidth: 0,
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: desktopRelationshipParity.rowGap,
-    borderRadius: mobileInspectorReferenceRowLayoutContract.radius,
-    paddingHorizontal: mobileInspectorReferenceRowLayoutContract.paddingHorizontal,
-    paddingVertical: mobileInspectorReferenceRowLayoutContract.paddingVertical,
-    width: '100%',
-  },
-  text: {
-    minWidth: 0,
-    flex: 1,
-    fontSize: mobileInspectorReferenceRowLayoutContract.textFontSize,
-    fontWeight: mobileInspectorReferenceRowLayoutContract.textFontWeight,
-  },
-})
-
-const propertyStyles = StyleSheet.create({
-  sectionLabel: {
-    color: mobileColors.textMuted,
-    fontSize: desktopPropertyParity.labelTextSize,
-  },
-  sectionRow: {
-    minHeight: desktopPropertyParity.rowMinHeight,
-    borderBottomColor: mobileColors.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: mobileSpace.sm,
-    paddingHorizontal: desktopPropertyParity.rowPaddingHorizontal,
-    paddingVertical: mobileSpace.sm,
-  },
-  sectionValue: {
-    alignSelf: 'stretch',
-    minWidth: 0,
-  },
-  placeholderButton: {
-    minHeight: desktopPropertyParity.rowMinHeight,
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    gap: mobileSpace.xs,
-    borderRadius: desktopPropertyParity.actionRowRadius,
-    paddingHorizontal: desktopPropertyParity.rowPaddingHorizontal,
-    width: '100%',
-  },
-  placeholderRelationshipButton: {
-    minHeight: desktopPropertyParity.rowMinHeight,
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    gap: mobileSpace.xs,
-    borderRadius: desktopRelationshipParity.rowRadius,
-    paddingHorizontal: 0,
-    width: '100%',
-  },
-  placeholderButtonText: {
-    minWidth: 0,
-    flex: 1,
-    color: mobileColors.textFaint,
-    fontSize: desktopPropertyParity.labelTextSize,
-  },
-  placeholderLabel: {
-    color: mobileColors.textFaint,
-    fontSize: desktopPropertyParity.labelTextSize,
-  },
-  placeholderAddValue: {
-    minHeight: mobileInspectorPlaceholderRowLayoutContract.minHeight,
-    minWidth: 0,
-    alignItems: 'center',
-    flex: 1,
-    flexDirection: 'row',
-    gap: mobileSpace.xs,
-    justifyContent: 'flex-end',
-    borderRadius: 4,
-    paddingHorizontal: mobileSpace.xs,
-  },
-  placeholderValue: {
-    minWidth: 0,
-    flex: 1,
-    color: mobileColors.textFaint,
-    fontSize: mobileType.caption,
-    textAlign: 'right',
-  },
-  editableText: {
-    minWidth: 0,
-    flex: 1,
-    color: mobileColors.text,
-    fontSize: mobileType.caption,
-  },
-  emptyEditableText: {
-    color: mobileColors.textFaint,
-    fontSize: mobileType.caption,
-  },
-  emptyEditableValue: {
-    minHeight: desktopPropertyParity.rowMinHeight,
-    minWidth: 0,
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    borderRadius: 4,
-    paddingHorizontal: mobileSpace.xs,
-    paddingVertical: 2,
-  },
-  editableValue: {
-    minWidth: 0,
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    gap: mobileSpace.xs,
-    justifyContent: 'flex-end',
-    borderRadius: 4,
-    paddingHorizontal: mobileSpace.xs,
-    paddingVertical: 2,
-  },
-  editableValuePressed: {
-    backgroundColor: mobileColors.graySoft,
-  },
-  tagWrap: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: mobileSpace.xs,
-  },
-  workspaceBadge: {
-    overflow: 'hidden',
-    borderRadius: mobileRadius.pill,
-    backgroundColor: mobileColors.graySoft,
-    color: mobileColors.textMuted,
-    fontSize: mobileType.micro,
-    fontWeight: '400',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-})
-
-const typeStyles = StyleSheet.create({
-  value: {
-    minWidth: 0,
-    alignItems: 'center',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: mobileSpace.xs,
-    justifyContent: 'flex-end',
-  },
-  missingButton: {
-    minHeight: desktopPropertyParity.chipHeight,
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 3,
-    borderRadius: desktopPropertyParity.chipRadius,
-    backgroundColor: mobileColors.orangeSoft,
-    paddingHorizontal: desktopPropertyParity.chipPaddingHorizontal,
-  },
-  missingText: {
-    color: mobileColors.orange,
-    fontSize: desktopPropertyParity.chipTextSize,
-    fontWeight: '500',
-    lineHeight: desktopPropertyParity.chipHeight,
-  },
-})
-
-const propertyDisplayStyles = StyleSheet.create({
-  colorSwatch: {
-    height: 12,
-    width: 12,
-    borderColor: mobileColors.borderStrong,
-    borderRadius: mobileRadius.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  colorValue: {
-    minWidth: 0,
-    alignItems: 'center',
-    flex: 1,
-    flexDirection: 'row',
-    gap: mobileSpace.xs,
-    justifyContent: 'flex-end',
-  },
-  listValue: {
-    minWidth: 0,
-    alignItems: 'center',
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: mobileSpace.xs,
-    justifyContent: 'flex-end',
-  },
-  numberText: {
-    fontVariant: ['tabular-nums'],
-  },
-  urlText: {
-    color: mobileColors.primary,
-  },
-})
-
-const actionStyles = StyleSheet.create({
-  iconSlot: {
-    width: desktopPropertyParity.labelIconSlot,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: {
-    minWidth: 0,
-    alignItems: 'center',
-    flex: 1,
-    flexDirection: 'row',
-    gap: mobileSpace.xs,
-    marginRight: mobileSpace.sm,
-    zIndex: 1,
-  },
-  row: {
-    height: desktopPropertyParity.rowMinHeight,
-    minHeight: desktopPropertyParity.rowMinHeight,
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 0,
-    alignSelf: 'stretch',
-    borderRadius: desktopPropertyParity.actionRowRadius,
-    paddingHorizontal: desktopPropertyParity.rowPaddingHorizontal,
-    position: 'relative',
-  },
-  rowPressed: {
-    backgroundColor: mobileColors.graySoft,
-  },
-  text: {
-    minWidth: 0,
-    flex: 1,
-    color: mobileColors.textFaint,
-    fontSize: desktopPropertyParity.labelTextSize,
-  },
-  value: {
-    flex: 1,
-    zIndex: 1,
-  },
-})

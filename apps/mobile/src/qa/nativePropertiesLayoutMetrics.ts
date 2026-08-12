@@ -1,8 +1,4 @@
-import type {
-  NativeLayoutAssertionFailure,
-  NativeLayoutMetric,
-  NativeLayoutMetricMap,
-} from './nativeLayoutMetrics'
+import type { NativeLayoutAssertionFailure, NativeLayoutMetric, NativeLayoutMetricMap } from './nativeLayoutMetrics'
 
 type MetricExpectation = {
   id: string
@@ -68,16 +64,14 @@ const requiredPropertyRowIds = [
   'properties.row.links',
 ] as const
 
-const requiredPropertyActionIds = [
-  'properties.action.add-property',
-  'properties.action.add-relationship',
-] as const
+const requiredPropertyActionIds = ['properties.action.add-property', 'properties.action.add-relationship'] as const
 
 export const nativePropertiesMetricContract = {
   labelWidth: 86,
   panelPadding: 12,
   panelWidth: 300,
   relationshipRowMinHeight: 28,
+  rowMaxHeight: 96,
   rowMinHeight: 28,
   rowPaddingHorizontal: 6,
 } as const
@@ -88,33 +82,26 @@ export function assertNativePropertiesLayoutMetrics(context: PropertyLayoutConte
     ...propertyRowIdsForMetrics(context.metrics).flatMap((id) => assertPropertyRowLayout({ ...context, id })),
     ...propertySectionIdsForMetrics(context.metrics).flatMap((id) => assertPropertySectionLayout({ ...context, id })),
     ...propertyActionIdsForMetrics(context.metrics).flatMap((id) => assertPropertyActionLayout({ ...context, id })),
-    ...relationshipMetricIdsForMetrics(context.metrics).flatMap((id) => assertRelationshipRowLayout({
-      id,
-      metrics: context.metrics,
-      sectionId: relationshipSectionIdForMetrics(context.metrics),
-    })),
+    ...relationshipMetricIdsForMetrics(context.metrics).flatMap((id) =>
+      assertRelationshipRowLayout({
+        id,
+        metrics: context.metrics,
+        sectionId: relationshipSectionIdForMetrics(context.metrics),
+      }),
+    ),
   ]
 }
 
 function propertyRowIdsForMetrics(metrics: NativeLayoutMetricMap): string[] {
-  return uniqueMetricIds([
-    ...requiredPropertyRowIds,
-    ...metricBaseIds(metrics, propertyRowPrefix),
-  ])
+  return uniqueMetricIds([...requiredPropertyRowIds, ...metricBaseIds(metrics, propertyRowPrefix)])
 }
 
 function propertySectionIdsForMetrics(metrics: NativeLayoutMetricMap): string[] {
-  return uniqueMetricIds([
-    tagsSectionId,
-    ...metricBaseIds(metrics, propertySectionPrefix),
-  ])
+  return uniqueMetricIds([tagsSectionId, ...metricBaseIds(metrics, propertySectionPrefix)])
 }
 
 function propertyActionIdsForMetrics(metrics: NativeLayoutMetricMap): string[] {
-  return uniqueMetricIds([
-    ...requiredPropertyActionIds,
-    ...metricBaseIds(metrics, propertyActionPrefix),
-  ])
+  return uniqueMetricIds([...requiredPropertyActionIds, ...metricBaseIds(metrics, propertyActionPrefix)])
 }
 
 function relationshipMetricIdsForMetrics(metrics: NativeLayoutMetricMap): string[] {
@@ -122,8 +109,7 @@ function relationshipMetricIdsForMetrics(metrics: NativeLayoutMetricMap): string
 }
 
 function relationshipSectionIdForMetrics(metrics: NativeLayoutMetricMap): string {
-  return propertySectionIdsForMetrics(metrics).find((id) => id !== tagsSectionId)
-    ?? fallbackRelationshipSectionId
+  return propertySectionIdsForMetrics(metrics).find((id) => id !== tagsSectionId) ?? fallbackRelationshipSectionId
 }
 
 function metricBaseIds(metrics: NativeLayoutMetricMap, prefix: string): string[] {
@@ -166,7 +152,12 @@ function assertPropertyRowLayout({
 
   return [
     ...assertPropertyRowMetricsCaptured(id, row),
-    ...assertPropertyRowFrameLayout({ expectedPanelWidth, id, label: 'property row', row }),
+    ...assertPropertyRowFrameLayout({
+      expectedPanelWidth,
+      id,
+      label: 'property row',
+      row,
+    }),
     ...assertPropertyRowContentLayout({ id, label: 'property', row }),
   ]
 }
@@ -180,19 +171,13 @@ function assertPropertySectionLayout({
 
   return [
     ...assertPropertyRowMetricsCaptured(id, row),
-    ...assertPropertyRowFrameLayout({ expectedPanelWidth, id, label: 'property section', row }),
-    ...expectClose({
-      actual: row.label?.x ?? null,
-      expected: nativePropertiesMetricContract.rowPaddingHorizontal,
+    ...assertPropertyRowFrameLayout({
+      expectedPanelWidth,
       id,
-      message: 'property section label keeps desktop row inset',
+      label: 'property section',
+      row,
     }),
-    ...expectClose({
-      actual: row.value?.x ?? null,
-      expected: nativePropertiesMetricContract.rowPaddingHorizontal,
-      id,
-      message: 'property section value keeps desktop row inset',
-    }),
+    ...assertPropertySectionInsets(id, row),
   ]
 }
 
@@ -205,20 +190,47 @@ function assertPropertyActionLayout({
 
   return [
     ...assertPropertyRowMetricsCaptured(id, row),
-    ...assertPropertyRowFrameLayout({ expectedPanelWidth, id, label: 'property action row', row }),
-    ...expectClose({
-      actual: row.label?.x ?? null,
-      expected: nativePropertiesMetricContract.rowPaddingHorizontal,
+    ...assertPropertyRowFrameLayout({
+      expectedPanelWidth,
       id,
-      message: 'property action label keeps desktop row inset',
+      label: 'property action row',
+      row,
     }),
-    ...expectClose({
-      actual: row.row && row.value ? row.row.width - row.value.x - row.value.width : null,
-      expected: nativePropertiesMetricContract.rowPaddingHorizontal,
+    ...assertPropertyActionInsets(id, row),
+    ...expectAtMost({
+      actual: row.row?.height ?? null,
+      expected: nativePropertiesMetricContract.rowMinHeight,
       id,
-      message: 'property action value keeps desktop right padding',
+      message: 'property action row keeps desktop height',
     }),
   ]
+}
+
+function assertPropertySectionInsets(id: string, row: PropertyRowMetrics) {
+  return [
+    ...expectHorizontalInset(id, 'property section label keeps desktop row inset', row.label?.x ?? null),
+    ...expectHorizontalInset(id, 'property section value keeps desktop row inset', row.value?.x ?? null),
+  ]
+}
+
+function assertPropertyActionInsets(id: string, row: PropertyRowMetrics) {
+  return [
+    ...expectHorizontalInset(id, 'property action label keeps desktop row inset', row.label?.x ?? null),
+    ...expectHorizontalInset(id, 'property action value keeps desktop right padding', rightInset(row)),
+  ]
+}
+
+function expectHorizontalInset(id: string, message: string, actual: number | null) {
+  return expectClose({
+    actual,
+    expected: nativePropertiesMetricContract.rowPaddingHorizontal,
+    id,
+    message,
+  })
+}
+
+function rightInset(row: PropertyRowMetrics) {
+  return row.row && row.value ? row.row.width - row.value.x - row.value.width : null
 }
 
 function assertPropertyRowFrameLayout({
@@ -248,14 +260,18 @@ function assertPropertyRowFrameLayout({
       id,
       message: `${label} keeps desktop minimum height`,
     }),
+    ...(label === 'property row'
+      ? expectAtMost({
+          actual: row.row?.height ?? null,
+          expected: nativePropertiesMetricContract.rowMaxHeight,
+          id,
+          message: 'property row stays within a compact wrapped-row height',
+        })
+      : []),
   ]
 }
 
-function assertPropertyRowContentLayout({
-  id,
-  label,
-  row,
-}: PropertyRowContentSpec): NativeLayoutAssertionFailure[] {
+function assertPropertyRowContentLayout({ id, label, row }: PropertyRowContentSpec): NativeLayoutAssertionFailure[] {
   return [
     ...expectClose({
       actual: row.label?.x ?? null,
@@ -324,13 +340,7 @@ function assertRelationshipRowLayout({
   ]
 }
 
-function propertyRowMetrics({
-  id,
-  metrics,
-}: {
-  id: string
-  metrics: NativeLayoutMetricMap
-}): PropertyRowMetrics {
+function propertyRowMetrics({ id, metrics }: { id: string; metrics: NativeLayoutMetricMap }): PropertyRowMetrics {
   return {
     label: metrics[`${id}.label`],
     row: metrics[`${id}.row`],
@@ -340,9 +350,21 @@ function propertyRowMetrics({
 
 function assertPropertyRowMetricsCaptured(id: string, row: PropertyRowMetrics): NativeLayoutAssertionFailure[] {
   return [
-    ...expectMetric({ id, message: 'property row is captured before checking native inspector spacing', metric: row.row }),
-    ...expectMetric({ id, message: 'property label is captured before checking native inspector spacing', metric: row.label }),
-    ...expectMetric({ id, message: 'property value is captured before checking native inspector spacing', metric: row.value }),
+    ...expectMetric({
+      id,
+      message: 'property row is captured before checking native inspector spacing',
+      metric: row.row,
+    }),
+    ...expectMetric({
+      id,
+      message: 'property label is captured before checking native inspector spacing',
+      metric: row.label,
+    }),
+    ...expectMetric({
+      id,
+      message: 'property value is captured before checking native inspector spacing',
+      metric: row.value,
+    }),
   ]
 }
 
@@ -363,6 +385,13 @@ function expectClose(expectation: LayoutExpectation): NativeLayoutAssertionFailu
 function expectAtLeast(expectation: LayoutExpectation): NativeLayoutAssertionFailure[] {
   const { actual, expected, id, message } = expectation
   if (actual !== null && actual >= expected) return []
+
+  return [{ actual, expected, id, message }]
+}
+
+function expectAtMost(expectation: LayoutExpectation): NativeLayoutAssertionFailure[] {
+  const { actual, expected, id, message } = expectation
+  if (actual !== null && actual <= expected) return []
 
   return [{ actual, expected, id, message }]
 }

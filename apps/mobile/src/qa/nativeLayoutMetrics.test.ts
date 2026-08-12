@@ -1,27 +1,20 @@
 import { describe, expect, it } from 'vitest'
+import { desktopNoteItemParity, desktopPanelParity, desktopPropertyParity, desktopRelationshipParity, desktopSidebarParity, desktopToolbarActionParity } from '../ui/desktopParity'
+import { mobileSpace } from '../ui/tokens'
 import {
   assertNativeMobileLayoutMetrics,
   assertNativePhoneLayoutMetrics,
   assertNativeWysiwygEditorLayoutMetrics,
   formatNativeLayoutAssertionFailures,
   latestNativeLayoutMetrics,
+  type NativeLayoutMetric,
   nativeNoteListMetricContract,
   nativePhoneShellMetricContract,
   nativePropertiesMetricContract,
   nativeSidebarMetricContract,
   nativeWysiwygEditorMetricContract,
   parseNativeLayoutMetrics,
-  type NativeLayoutMetric,
 } from './nativeLayoutMetrics'
-import {
-  desktopNoteItemParity,
-  desktopPanelParity,
-  desktopPropertyParity,
-  desktopRelationshipParity,
-  desktopSidebarParity,
-  desktopToolbarActionParity,
-} from '../ui/desktopParity'
-import { mobileSpace } from '../ui/tokens'
 
 describe('native layout metrics', () => {
   it('keeps the native metric contract synced with desktop sidebar parity tokens', () => {
@@ -51,6 +44,9 @@ describe('native layout metrics', () => {
       padding: desktopNoteItemParity.padding,
       titleLineHeight: desktopNoteItemParity.titleLineHeight,
     })
+  })
+
+  it('keeps native editor and inspector contracts synced with desktop parity tokens', () => {
     expect(nativeWysiwygEditorMetricContract).toEqual({
       minFormHeight: 320,
       toolbarActionCount: 21,
@@ -64,6 +60,7 @@ describe('native layout metrics', () => {
       panelPadding: desktopPropertyParity.panelPadding,
       panelWidth: desktopPanelParity.inspectorWidth,
       relationshipRowMinHeight: desktopPropertyParity.rowMinHeight,
+      rowMaxHeight: 96,
       rowMinHeight: desktopPropertyParity.rowMinHeight,
       rowPaddingHorizontal: desktopPropertyParity.rowPaddingHorizontal,
     })
@@ -77,12 +74,11 @@ describe('native layout metrics', () => {
   })
 
   it('parses simulator log metrics and keeps the latest metric per id', () => {
-    const metrics = latestNativeLayoutMetrics(parseNativeLayoutMetrics([
-      'noise before metric',
-      'TOLARIA_MOBILE_LAYOUT_METRIC {"height":12,"id":"sidebar.item.inbox.row","platform":"ios","width":10,"x":1,"y":2}',
-      'TOLARIA_MOBILE_LAYOUT_METRIC {"height":32,"id":"sidebar.item.inbox.row","platform":"ios","width":247.5,"x":6,"y":4}',
-      'TOLARIA_MOBILE_LAYOUT_METRIC not-json',
-    ].join('\n')))
+    const metrics = latestNativeLayoutMetrics(
+      parseNativeLayoutMetrics(
+        ['noise before metric', 'TOLARIA_MOBILE_LAYOUT_METRIC {"height":12,"id":"sidebar.item.inbox.row","platform":"ios","width":10,"x":1,"y":2}', 'TOLARIA_MOBILE_LAYOUT_METRIC {"height":32,"id":"sidebar.item.inbox.row","platform":"ios","width":247.5,"x":6,"y":4}', 'TOLARIA_MOBILE_LAYOUT_METRIC not-json'].join('\n'),
+      ),
+    )
 
     expect(metrics['sidebar.item.inbox.row']).toEqual({
       height: 32,
@@ -95,41 +91,44 @@ describe('native layout metrics', () => {
   })
 
   it('accepts native phone list metrics that keep desktop note row spacing at full width', () => {
-    const phoneWidth = 390
-    const metrics = latestNativeLayoutMetrics([
-      phoneRootMetric({ width: phoneWidth }),
-      phoneScreenMetric('list', { width: phoneWidth }),
-      noteListPanelMetric({ width: phoneWidth }),
-      noteListItemMetric('noteList.item.workflow-orchestration', { frameWidth: phoneWidth, selected: true, y: 0 }),
-      noteListItemMetric('noteList.item.open-source-project', { frameWidth: phoneWidth, y: 118 }),
-    ].flat())
+    const metrics = nativePhoneListMetrics({
+      firstId: 'noteList.item.workflow-orchestration',
+      secondId: 'noteList.item.open-source-project',
+      width: 390,
+    })
 
     expect(assertNativePhoneLayoutMetrics(metrics, 'list')).toEqual([])
   })
 
   it('accepts native phone list metrics from real-vault note ids', () => {
-    const phoneWidth = 402
-    const metrics = latestNativeLayoutMetrics([
-      phoneRootMetric({ width: phoneWidth }),
-      phoneScreenMetric('list', { width: phoneWidth }),
-      noteListPanelMetric({ width: phoneWidth }),
-      noteListItemMetric('noteList.item.tolaria-release-v2026-06-23.md', { frameWidth: phoneWidth, selected: true }),
-      noteListItemMetric('noteList.item.refactoring-newsletter-36-month-business-plan.md', { frameWidth: phoneWidth }),
-    ].flat())
+    const metrics = nativePhoneListMetrics({
+      firstId: 'noteList.item.tolaria-release-v2026-06-23.md',
+      secondId: 'noteList.item.refactoring-newsletter-36-month-business-plan.md',
+      width: 402,
+    })
 
     expect(assertNativePhoneLayoutMetrics(metrics, 'list')).toEqual([])
   })
 
   it('reports native phone sidebar metrics that miss drawer or shared sidebar spacing evidence', () => {
     const phoneWidth = 390
-    const metrics = latestNativeLayoutMetrics([
-      phoneRootMetric({ width: phoneWidth }),
-      phoneScreenMetric('sidebar', { width: phoneWidth }),
-      phoneSidebarDrawerMetric({ drawerWidth: 240, width: phoneWidth }),
-      noteListPanelMetric({ width: phoneWidth }),
-      noteListItemMetric('noteList.item.workflow-orchestration', { frameWidth: phoneWidth, selected: true, y: 0 }),
-      noteListItemMetric('noteList.item.open-source-project', { frameWidth: phoneWidth, y: 118 }),
-    ].flat())
+    const metrics = latestNativeLayoutMetrics(
+      [
+        phoneRootMetric({ width: phoneWidth }),
+        phoneScreenMetric('sidebar', { width: phoneWidth }),
+        phoneSidebarDrawerMetric({ drawerWidth: 240, width: phoneWidth }),
+        noteListPanelMetric({ width: phoneWidth }),
+        noteListItemMetric('noteList.item.workflow-orchestration', {
+          frameWidth: phoneWidth,
+          selected: true,
+          y: 0,
+        }),
+        noteListItemMetric('noteList.item.open-source-project', {
+          frameWidth: phoneWidth,
+          y: 118,
+        }),
+      ].flat(),
+    )
 
     const formatted = formatNativeLayoutAssertionFailures(assertNativePhoneLayoutMetrics(metrics, 'sidebar'))
 
@@ -139,55 +138,83 @@ describe('native layout metrics', () => {
 
   it('accepts native phone properties metrics that keep desktop inspector density', () => {
     const phoneWidth = 390
-    const metrics = latestNativeLayoutMetrics([
-      phoneRootMetric({ width: phoneWidth }),
-      phoneScreenMetric('properties', { width: phoneWidth }),
-      propertiesPanelMetric({ width: phoneWidth }),
-      propertyRowMetric('properties.row.type', { panelWidth: phoneWidth }),
-      propertyRowMetric('properties.row.created', { panelWidth: phoneWidth }),
-      propertyRowMetric('properties.row.modified', { panelWidth: phoneWidth }),
-      propertyRowMetric('properties.row.workspace', { panelWidth: phoneWidth }),
-      propertyRowMetric('properties.row.links', { panelWidth: phoneWidth }),
-      propertySectionMetric('properties.section.tags', { panelWidth: phoneWidth }),
-      propertySectionMetric('properties.section.belongs-to', { panelWidth: phoneWidth }),
-      propertyActionMetric('properties.action.add-property', { panelWidth: phoneWidth }),
-      propertyActionMetric('properties.action.add-relationship', { panelWidth: phoneWidth }),
-      relationshipRowMetric('properties.relationship.llm-workflow', 'properties.section.belongs-to', { panelWidth: phoneWidth }),
-    ].flat())
+    const metrics = latestNativeLayoutMetrics(
+      [
+        phoneRootMetric({ width: phoneWidth }),
+        phoneScreenMetric('properties', { width: phoneWidth }),
+        propertiesPanelMetric({ width: phoneWidth }),
+        propertyRowMetric('properties.row.type', { panelWidth: phoneWidth }),
+        propertyRowMetric('properties.row.created', { panelWidth: phoneWidth }),
+        propertyRowMetric('properties.row.modified', {
+          panelWidth: phoneWidth,
+        }),
+        propertyRowMetric('properties.row.workspace', {
+          panelWidth: phoneWidth,
+        }),
+        propertyRowMetric('properties.row.links', { panelWidth: phoneWidth }),
+        propertySectionMetric('properties.section.tags', {
+          panelWidth: phoneWidth,
+        }),
+        propertySectionMetric('properties.section.belongs-to', {
+          panelWidth: phoneWidth,
+        }),
+        propertyActionMetric('properties.action.add-property', {
+          panelWidth: phoneWidth,
+        }),
+        propertyActionMetric('properties.action.add-relationship', {
+          panelWidth: phoneWidth,
+        }),
+        relationshipRowMetric('properties.relationship.llm-workflow', 'properties.section.belongs-to', {
+          panelWidth: phoneWidth,
+        }),
+      ].flat(),
+    )
 
     expect(assertNativePhoneLayoutMetrics(metrics, 'properties')).toEqual([])
   })
 
   it('reports native phone properties metrics that lose desktop row padding', () => {
     const phoneWidth = 390
-    const metrics = latestNativeLayoutMetrics([
-      phoneRootMetric({ width: phoneWidth }),
-      phoneScreenMetric('properties', { width: phoneWidth }),
-      propertiesPanelMetric({ width: phoneWidth }),
-      propertyRowMetric('properties.row.type', {
-        labelX: 0,
-        panelWidth: phoneWidth,
-        rowHeight: 20,
-        rowX: 0,
-        valueRightPadding: 0,
-      }),
-      propertyRowMetric('properties.row.created', { panelWidth: phoneWidth }),
-      propertyRowMetric('properties.row.modified', { panelWidth: phoneWidth }),
-      propertyRowMetric('properties.row.workspace', { panelWidth: phoneWidth }),
-      propertyRowMetric('properties.row.links', { panelWidth: phoneWidth }),
-      propertySectionMetric('properties.section.tags', { panelWidth: phoneWidth }),
-      propertySectionMetric('properties.section.belongs-to', { panelWidth: phoneWidth }),
-      propertyActionMetric('properties.action.add-property', {
-        panelWidth: phoneWidth,
-        rowX: 0,
-        valueRightPadding: 0,
-      }),
-      propertyActionMetric('properties.action.add-relationship', { panelWidth: phoneWidth }),
-      relationshipRowMetric('properties.relationship.llm-workflow', 'properties.section.belongs-to', {
-        panelWidth: phoneWidth,
-        rowWidth: 260,
-      }),
-    ].flat())
+    const metrics = latestNativeLayoutMetrics(
+      [
+        phoneRootMetric({ width: phoneWidth }),
+        phoneScreenMetric('properties', { width: phoneWidth }),
+        propertiesPanelMetric({ width: phoneWidth }),
+        propertyRowMetric('properties.row.type', {
+          labelX: 0,
+          panelWidth: phoneWidth,
+          rowHeight: 20,
+          rowX: 0,
+          valueRightPadding: 0,
+        }),
+        propertyRowMetric('properties.row.created', { panelWidth: phoneWidth }),
+        propertyRowMetric('properties.row.modified', {
+          panelWidth: phoneWidth,
+        }),
+        propertyRowMetric('properties.row.workspace', {
+          panelWidth: phoneWidth,
+        }),
+        propertyRowMetric('properties.row.links', { panelWidth: phoneWidth }),
+        propertySectionMetric('properties.section.tags', {
+          panelWidth: phoneWidth,
+        }),
+        propertySectionMetric('properties.section.belongs-to', {
+          panelWidth: phoneWidth,
+        }),
+        propertyActionMetric('properties.action.add-property', {
+          panelWidth: phoneWidth,
+          rowX: 0,
+          valueRightPadding: 0,
+        }),
+        propertyActionMetric('properties.action.add-relationship', {
+          panelWidth: phoneWidth,
+        }),
+        relationshipRowMetric('properties.relationship.llm-workflow', 'properties.section.belongs-to', {
+          panelWidth: phoneWidth,
+          rowWidth: 260,
+        }),
+      ].flat(),
+    )
 
     const formatted = formatNativeLayoutAssertionFailures(assertNativePhoneLayoutMetrics(metrics, 'properties'))
 
@@ -201,111 +228,13 @@ describe('native layout metrics', () => {
   })
 
   it('accepts native sidebar metrics that match desktop spacing tokens', () => {
-    const metrics = latestNativeLayoutMetrics([
-      containerMetric({ height: 104, id: 'sidebar.section.primary.container', width: 259.5 }),
-      itemMetric('sidebar.item.inbox', { hasCount: true, y: 4 }),
-      itemMetric('sidebar.item.all-notes', { hasCount: true, y: 36 }),
-      itemMetric('sidebar.item.archive', { hasCount: true, y: 68 }),
-      containerMetric({ height: 90, id: 'sidebar.section.favorites.container', width: 259.5, y: 104 }),
-      sectionMetric('favorites'),
-      itemMetric('sidebar.item.personal-journal', { hasCount: false, y: 30 }),
-      itemMetric('sidebar.item.tolaria-mvp', { hasCount: false, y: 60 }),
-      containerMetric({ height: 72, id: 'sidebar.section.views.container', width: 259.5, y: 194 }),
-      sectionMetric('views', 40),
-      itemMetric('sidebar.item.view-active-procedures', { hasCount: true, y: 40 }),
-      containerMetric({ height: 130, id: 'sidebar.section.types.container', width: 259.5, y: 266 }),
-      sectionMetric('types'),
-      itemMetric('sidebar.item.essays', { hasCount: true, y: 30 }),
-      itemMetric('sidebar.item.procedures', { hasCount: true, y: 62 }),
-      itemMetric('sidebar.item.responsibilities', { hasCount: true, y: 94 }),
-      containerMetric({ height: 220, id: 'sidebar.section.folders.container', width: 259.5, y: 396 }),
-      sectionMetric('folders'),
-      countPillMetric('sidebar.item.archive.count'),
-      countPillMetric('sidebar.item.view-active-procedures.count'),
-      countPillMetric('sidebar.section.types.count', { compact: true }),
-      folderTreeRootMetric(30, { height: 190, x: 6 }),
-      containerMetric({ height: 90, id: 'sidebar.folder.writing.container' }),
-      folderMetric('sidebar.folder.writing', 12),
-      containerMetric({ height: 30, id: 'sidebar.folder.writing-essays.container' }),
-      folderMetric('sidebar.folder.writing-essays', 37),
-      containerMetric({ height: 30, id: 'sidebar.folder.writing-drafts.container', y: 30 }),
-      folderMetric('sidebar.folder.writing-drafts', 37),
-      containerMetric({ height: 90, id: 'sidebar.folder.tolaria.container', y: 90 }),
-      folderMetric('sidebar.folder.tolaria', 12),
-      containerMetric({ height: 30, id: 'sidebar.folder.tolaria-mobile-ui.container' }),
-      folderMetric('sidebar.folder.tolaria-mobile-ui', 37),
-      containerMetric({ height: 30, id: 'sidebar.folder.tolaria-releases.container', y: 30 }),
-      folderMetric('sidebar.folder.tolaria-releases', 37),
-      noteListPanelMetric(),
-      noteListItemMetric('noteList.item.workflow-orchestration', { selected: true, y: 0 }),
-      noteListItemMetric('noteList.item.open-source-project', { y: 118 }),
-      propertiesPanelMetric(),
-      propertyRowMetric('properties.row.type'),
-      propertyRowMetric('properties.row.created'),
-      propertyRowMetric('properties.row.modified'),
-      propertyRowMetric('properties.row.workspace'),
-      propertyRowMetric('properties.row.links'),
-      propertySectionMetric('properties.section.tags'),
-      propertySectionMetric('properties.section.belongs-to'),
-      propertyActionMetric('properties.action.add-property'),
-      propertyActionMetric('properties.action.add-relationship'),
-      relationshipRowMetric('properties.relationship.llm-workflow', 'properties.section.belongs-to'),
-    ].flat())
+    const metrics = latestNativeLayoutMetrics(validNativeDesktopMetrics.flat())
 
     expect(assertNativeMobileLayoutMetrics(metrics)).toEqual([])
   })
 
   it('reports native sidebar rows that lose horizontal or vertical padding', () => {
-    const metrics = latestNativeLayoutMetrics([
-      containerMetric({ height: 94, id: 'sidebar.section.primary.container', width: 259.5 }),
-      itemMetric('sidebar.item.inbox', { hasCount: true, rowHeight: 22, rowX: 0 }),
-      itemMetric('sidebar.item.all-notes', { hasCount: true, y: 10 }),
-      itemMetric('sidebar.item.archive', { hasCount: true, y: 64 }),
-      containerMetric({ height: 76, id: 'sidebar.section.favorites.container', width: 259.5, y: 80 }),
-      sectionMetric('favorites', 18),
-      itemMetric('sidebar.item.personal-journal', { hasCount: false, y: 16 }),
-      itemMetric('sidebar.item.tolaria-mvp', { hasCount: false, y: 46 }),
-      containerMetric({ height: 72, id: 'sidebar.section.views.container', width: 259.5, y: 156 }),
-      sectionMetric('views', 40),
-      itemMetric('sidebar.item.view-active-procedures', { hasCount: true, y: 40 }),
-      containerMetric({ height: 130, id: 'sidebar.section.types.container', width: 259.5, y: 220 }),
-      sectionMetric('types'),
-      itemMetric('sidebar.item.essays', { hasCount: true, y: 30 }),
-      itemMetric('sidebar.item.procedures', { hasCount: true, y: 62 }),
-      itemMetric('sidebar.item.responsibilities', { hasCount: true, y: 94 }),
-      countPillMetric('sidebar.item.essays.count', { textY: 0 }),
-      countPillMetric('sidebar.item.archive.count'),
-      countPillMetric('sidebar.item.view-active-procedures.count'),
-      containerMetric({ height: 180, id: 'sidebar.section.folders.container', width: 259.5, y: 350 }),
-      sectionMetric('folders'),
-      countPillMetric('sidebar.section.types.count', { compact: true }),
-      folderTreeRootMetric(30, { height: 120, x: 0 }),
-      containerMetric({ height: 70, id: 'sidebar.folder.writing.container' }),
-      folderMetric('sidebar.folder.writing', 0),
-      containerMetric({ height: 30, id: 'sidebar.folder.writing-essays.container' }),
-      folderMetric('sidebar.folder.writing-essays', 37),
-      containerMetric({ height: 30, id: 'sidebar.folder.writing-drafts.container' }),
-      folderMetric('sidebar.folder.writing-drafts', 37),
-      containerMetric({ height: 40, id: 'sidebar.folder.tolaria.container', y: 40 }),
-      folderMetric('sidebar.folder.tolaria', 12),
-      containerMetric({ height: 30, id: 'sidebar.folder.tolaria-mobile-ui.container' }),
-      folderMetric('sidebar.folder.tolaria-mobile-ui', 37),
-      containerMetric({ height: 30, id: 'sidebar.folder.tolaria-releases.container' }),
-      folderMetric('sidebar.folder.tolaria-releases', 37),
-      noteListPanelMetric({ width: 284 }),
-      noteListItemMetric('noteList.item.workflow-orchestration', {
-        frameWidth: 284,
-        headerX: 0,
-        headerY: 2,
-        selected: true,
-        titleHeight: 14,
-      }),
-      noteListItemMetric('noteList.item.open-source-project', {
-        frameWidth: 284,
-        headerX: 0,
-        y: 22,
-      }),
-    ].flat())
+    const metrics = latestNativeLayoutMetrics(invalidNativeDesktopSpacingMetrics.flat())
 
     const failures = assertNativeMobileLayoutMetrics(metrics)
     const formatted = formatNativeLayoutAssertionFailures(failures)
@@ -334,12 +263,14 @@ describe('native layout metrics', () => {
   })
 
   it('reports native WYSIWYG editor metrics that lose toolbar spacing', () => {
-    const metrics = latestNativeLayoutMetrics(wysiwygEditorMetric({
-      actionGap: 0,
-      actionSize: 20,
-      toolbarHostBottomGap: 18,
-      toolbarX: 0,
-    }))
+    const metrics = latestNativeLayoutMetrics(
+      wysiwygEditorMetric({
+        actionGap: 0,
+        actionSize: 20,
+        toolbarHostBottomGap: 18,
+        toolbarX: 0,
+      }),
+    )
 
     const formatted = formatNativeLayoutAssertionFailures(assertNativeWysiwygEditorLayoutMetrics(metrics))
 
@@ -350,54 +281,136 @@ describe('native layout metrics', () => {
   })
 })
 
-const wysiwygToolbarActions = [
-  'attachment',
-  'pastePlainText',
-  'bold',
-  'italic',
-  'strike',
-  'code',
-  'highlight',
-  'link',
-  'wikilink',
-  'heading1',
-  'heading2',
-  'heading3',
-  'heading4',
-  'heading5',
-  'heading6',
-  'bulletList',
-  'orderedList',
-  'taskList',
-  'indent',
-  'outdent',
-  'quote',
-] as const
+const validNativeDesktopMetrics = [
+  containerMetric({ height: 104, id: 'sidebar.section.primary.container', width: 259.5 }),
+  itemMetric('sidebar.item.inbox', { hasCount: true, y: 4 }),
+  itemMetric('sidebar.item.all-notes', { hasCount: true, y: 36 }),
+  itemMetric('sidebar.item.archive', { hasCount: true, y: 68 }),
+  containerMetric({ height: 90, id: 'sidebar.section.favorites.container', width: 259.5, y: 104 }),
+  sectionMetric('favorites'),
+  itemMetric('sidebar.item.personal-journal', { hasCount: false, y: 30 }),
+  itemMetric('sidebar.item.tolaria-mvp', { hasCount: false, y: 60 }),
+  containerMetric({ height: 72, id: 'sidebar.section.views.container', width: 259.5, y: 194 }),
+  sectionMetric('views', 40),
+  itemMetric('sidebar.item.view-active-procedures', { hasCount: true, y: 40 }),
+  containerMetric({ height: 130, id: 'sidebar.section.types.container', width: 259.5, y: 266 }),
+  sectionMetric('types'),
+  itemMetric('sidebar.item.essays', { hasCount: true, y: 30 }),
+  itemMetric('sidebar.item.procedures', { hasCount: true, y: 62 }),
+  itemMetric('sidebar.item.responsibilities', { hasCount: true, y: 94 }),
+  containerMetric({ height: 220, id: 'sidebar.section.folders.container', width: 259.5, y: 396 }),
+  sectionMetric('folders'),
+  countPillMetric('sidebar.item.archive.count'),
+  countPillMetric('sidebar.item.view-active-procedures.count'),
+  countPillMetric('sidebar.section.types.count', { compact: true }),
+  folderTreeRootMetric(30, { height: 190, x: 6 }),
+  containerMetric({ height: 90, id: 'sidebar.folder.writing.container' }),
+  folderMetric('sidebar.folder.writing', 12),
+  containerMetric({ height: 30, id: 'sidebar.folder.writing-essays.container' }),
+  folderMetric('sidebar.folder.writing-essays', 37),
+  containerMetric({ height: 30, id: 'sidebar.folder.writing-drafts.container', y: 30 }),
+  folderMetric('sidebar.folder.writing-drafts', 37),
+  containerMetric({ height: 90, id: 'sidebar.folder.tolaria.container', y: 90 }),
+  folderMetric('sidebar.folder.tolaria', 12),
+  containerMetric({ height: 30, id: 'sidebar.folder.tolaria-mobile-ui.container' }),
+  folderMetric('sidebar.folder.tolaria-mobile-ui', 37),
+  containerMetric({ height: 30, id: 'sidebar.folder.tolaria-releases.container', y: 30 }),
+  folderMetric('sidebar.folder.tolaria-releases', 37),
+  noteListPanelMetric(),
+  noteListItemMetric('noteList.item.workflow-orchestration', { selected: true, y: 0 }),
+  noteListItemMetric('noteList.item.open-source-project', { y: 118 }),
+  propertiesPanelMetric(),
+  propertyRowMetric('properties.row.type'),
+  propertyRowMetric('properties.row.created'),
+  propertyRowMetric('properties.row.modified'),
+  propertyRowMetric('properties.row.workspace'),
+  propertyRowMetric('properties.row.links'),
+  propertySectionMetric('properties.section.tags'),
+  propertySectionMetric('properties.section.belongs-to'),
+  propertyActionMetric('properties.action.add-property'),
+  propertyActionMetric('properties.action.add-relationship'),
+  relationshipRowMetric('properties.relationship.llm-workflow', 'properties.section.belongs-to'),
+]
 
-function wysiwygEditorMetric(
-  {
-    actionGap = nativeWysiwygEditorMetricContract.toolbarActionGap,
-    actionSize = nativeWysiwygEditorMetricContract.toolbarActionSize,
-    formHeight = 640,
-    formWidth = 760,
-    toolbarHostBottomGap = 0,
-    toolbarX = nativeWysiwygEditorMetricContract.toolbarHostPaddingHorizontal,
-    toolbarY = nativeWysiwygEditorMetricContract.toolbarHostPaddingTop,
-  }: {
-    actionGap?: number
-    actionSize?: number
-    formHeight?: number
-    formWidth?: number
-    toolbarHostBottomGap?: number
-    toolbarX?: number
-    toolbarY?: number
-  } = {},
-): NativeLayoutMetric[] {
+const invalidNativeDesktopSpacingMetrics = [
+  containerMetric({ height: 94, id: 'sidebar.section.primary.container', width: 259.5 }),
+  itemMetric('sidebar.item.inbox', { hasCount: true, rowHeight: 22, rowX: 0 }),
+  itemMetric('sidebar.item.all-notes', { hasCount: true, y: 10 }),
+  itemMetric('sidebar.item.archive', { hasCount: true, y: 64 }),
+  containerMetric({ height: 76, id: 'sidebar.section.favorites.container', width: 259.5, y: 80 }),
+  sectionMetric('favorites', 18),
+  itemMetric('sidebar.item.personal-journal', { hasCount: false, y: 16 }),
+  itemMetric('sidebar.item.tolaria-mvp', { hasCount: false, y: 46 }),
+  containerMetric({ height: 72, id: 'sidebar.section.views.container', width: 259.5, y: 156 }),
+  sectionMetric('views', 40),
+  itemMetric('sidebar.item.view-active-procedures', { hasCount: true, y: 40 }),
+  containerMetric({ height: 130, id: 'sidebar.section.types.container', width: 259.5, y: 220 }),
+  sectionMetric('types'),
+  itemMetric('sidebar.item.essays', { hasCount: true, y: 30 }),
+  itemMetric('sidebar.item.procedures', { hasCount: true, y: 62 }),
+  itemMetric('sidebar.item.responsibilities', { hasCount: true, y: 94 }),
+  countPillMetric('sidebar.item.essays.count', { textY: 0 }),
+  countPillMetric('sidebar.item.archive.count'),
+  countPillMetric('sidebar.item.view-active-procedures.count'),
+  containerMetric({ height: 180, id: 'sidebar.section.folders.container', width: 259.5, y: 350 }),
+  sectionMetric('folders'),
+  countPillMetric('sidebar.section.types.count', { compact: true }),
+  folderTreeRootMetric(30, { height: 120, x: 0 }),
+  containerMetric({ height: 70, id: 'sidebar.folder.writing.container' }),
+  folderMetric('sidebar.folder.writing', 0),
+  containerMetric({ height: 30, id: 'sidebar.folder.writing-essays.container' }),
+  folderMetric('sidebar.folder.writing-essays', 37),
+  containerMetric({ height: 30, id: 'sidebar.folder.writing-drafts.container' }),
+  folderMetric('sidebar.folder.writing-drafts', 37),
+  containerMetric({ height: 40, id: 'sidebar.folder.tolaria.container', y: 40 }),
+  folderMetric('sidebar.folder.tolaria', 12),
+  containerMetric({ height: 30, id: 'sidebar.folder.tolaria-mobile-ui.container' }),
+  folderMetric('sidebar.folder.tolaria-mobile-ui', 37),
+  containerMetric({ height: 30, id: 'sidebar.folder.tolaria-releases.container' }),
+  folderMetric('sidebar.folder.tolaria-releases', 37),
+  noteListPanelMetric({ width: 284 }),
+  noteListItemMetric('noteList.item.workflow-orchestration', {
+    frameWidth: 284,
+    headerX: 0,
+    headerY: 2,
+    selected: true,
+    titleHeight: 14,
+  }),
+  noteListItemMetric('noteList.item.open-source-project', { frameWidth: 284, headerX: 0, y: 22 }),
+]
+
+const wysiwygToolbarActions = ['attachment', 'pastePlainText', 'bold', 'italic', 'strike', 'code', 'highlight', 'link', 'wikilink', 'heading1', 'heading2', 'heading3', 'heading4', 'heading5', 'heading6', 'bulletList', 'orderedList', 'taskList', 'indent', 'outdent', 'quote'] as const
+
+function wysiwygEditorMetric({
+  actionGap = nativeWysiwygEditorMetricContract.toolbarActionGap,
+  actionSize = nativeWysiwygEditorMetricContract.toolbarActionSize,
+  formHeight = 640,
+  formWidth = 760,
+  toolbarHostBottomGap = 0,
+  toolbarX = nativeWysiwygEditorMetricContract.toolbarHostPaddingHorizontal,
+  toolbarY = nativeWysiwygEditorMetricContract.toolbarHostPaddingTop,
+}: {
+  actionGap?: number
+  actionSize?: number
+  formHeight?: number
+  formWidth?: number
+  toolbarHostBottomGap?: number
+  toolbarX?: number
+  toolbarY?: number
+} = {}): NativeLayoutMetric[] {
   const toolbarHostHeight = toolbarY + actionSize + mobileSpace.xs
 
   return [
-    containerMetric({ height: formHeight, id: 'editor.wysiwyg.form', width: formWidth }),
-    containerMetric({ height: formHeight, id: 'editor.wysiwyg.richText', width: formWidth }),
+    containerMetric({
+      height: formHeight,
+      id: 'editor.wysiwyg.form',
+      width: formWidth,
+    }),
+    containerMetric({
+      height: formHeight,
+      id: 'editor.wysiwyg.richText',
+      width: formWidth,
+    }),
     containerMetric({
       height: toolbarHostHeight,
       id: 'editor.wysiwyg.toolbarHost',
@@ -411,12 +424,14 @@ function wysiwygEditorMetric(
       x: toolbarX,
       y: toolbarY,
     }),
-    ...wysiwygToolbarActions.map((action, index) => containerMetric({
-      height: actionSize,
-      id: `editor.wysiwyg.toolbar.action.${action}`,
-      width: actionSize,
-      x: index * (actionSize + actionGap),
-    })),
+    ...wysiwygToolbarActions.map((action, index) =>
+      containerMetric({
+        height: actionSize,
+        id: `editor.wysiwyg.toolbar.action.${action}`,
+        width: actionSize,
+        x: index * (actionSize + actionGap),
+      }),
+    ),
   ]
 }
 
@@ -424,11 +439,7 @@ function wysiwygToolbarWidth(actionSize: number, actionGap: number) {
   return wysiwygToolbarActions.length * actionSize + (wysiwygToolbarActions.length - 1) * actionGap
 }
 
-function propertiesPanelMetric({
-  width = desktopPanelParity.inspectorWidth,
-}: {
-  width?: number
-} = {}): NativeLayoutMetric {
+function propertiesPanelMetric({ width = desktopPanelParity.inspectorWidth }: { width?: number } = {}): NativeLayoutMetric {
   return containerMetric({ height: 704, id: 'properties.panel', width })
 }
 
@@ -455,9 +466,26 @@ function propertyRowMetric(
   const valueWidth = rowWidth - valueX - valueRightPadding
 
   return [
-    containerMetric({ height: rowHeight, id: `${id}.row`, width: rowWidth, x: rowX }),
-    containerMetric({ height: 18, id: `${id}.label`, width: labelWidth, x: labelX, y: 5 }),
-    containerMetric({ height: 18, id: `${id}.value`, width: valueWidth, x: valueX, y: 5 }),
+    containerMetric({
+      height: rowHeight,
+      id: `${id}.row`,
+      width: rowWidth,
+      x: rowX,
+    }),
+    containerMetric({
+      height: 18,
+      id: `${id}.label`,
+      width: labelWidth,
+      x: labelX,
+      y: 5,
+    }),
+    containerMetric({
+      height: 18,
+      id: `${id}.value`,
+      width: valueWidth,
+      x: valueX,
+      y: 5,
+    }),
   ]
 }
 
@@ -478,9 +506,26 @@ function propertySectionMetric(
   const rowWidth = panelWidth - desktopPropertyParity.panelPadding * 2
 
   return [
-    containerMetric({ height: rowHeight, id: `${id}.row`, width: rowWidth, x: rowX }),
-    containerMetric({ height: 18, id: `${id}.label`, width: nativePropertiesMetricContract.labelWidth, x: labelX, y: 6 }),
-    containerMetric({ height: 28, id: `${id}.value`, width: rowWidth - labelX * 2, x: labelX, y: 24 }),
+    containerMetric({
+      height: rowHeight,
+      id: `${id}.row`,
+      width: rowWidth,
+      x: rowX,
+    }),
+    containerMetric({
+      height: 18,
+      id: `${id}.label`,
+      width: nativePropertiesMetricContract.labelWidth,
+      x: labelX,
+      y: 6,
+    }),
+    containerMetric({
+      height: 28,
+      id: `${id}.value`,
+      width: rowWidth - labelX * 2,
+      x: labelX,
+      y: 24,
+    }),
   ]
 }
 
@@ -507,9 +552,26 @@ function propertyActionMetric(
   const valueX = labelX + labelWidth + mobileSpace.sm
 
   return [
-    containerMetric({ height: rowHeight, id: `${id}.row`, width: rowWidth, x: rowX }),
-    containerMetric({ height: 18, id: `${id}.label`, width: labelWidth, x: labelX, y: 5 }),
-    containerMetric({ height: 18, id: `${id}.value`, width: valueWidth, x: valueX, y: 5 }),
+    containerMetric({
+      height: rowHeight,
+      id: `${id}.row`,
+      width: rowWidth,
+      x: rowX,
+    }),
+    containerMetric({
+      height: 18,
+      id: `${id}.label`,
+      width: labelWidth,
+      x: labelX,
+      y: 5,
+    }),
+    containerMetric({
+      height: 18,
+      id: `${id}.value`,
+      width: valueWidth,
+      x: valueX,
+      y: 5,
+    }),
   ]
 }
 
@@ -636,11 +698,11 @@ function countPillMetric(
   ]
 }
 
-function noteListPanelMetric({
-  width = desktopPanelParity.noteListWidth,
-}: {
-  width?: number
-} = {}): NativeLayoutMetric {
+function nativePhoneListMetrics({ firstId, secondId, width }: { firstId: string; secondId: string; width: number }) {
+  return latestNativeLayoutMetrics([phoneRootMetric({ width }), phoneScreenMetric('list', { width }), noteListPanelMetric({ width }), noteListItemMetric(firstId, { frameWidth: width, selected: true }), noteListItemMetric(secondId, { frameWidth: width })].flat())
+}
+
+function noteListPanelMetric({ width = desktopPanelParity.noteListWidth }: { width?: number } = {}): NativeLayoutMetric {
   return {
     height: 768,
     id: 'noteList.panel',
@@ -651,13 +713,7 @@ function noteListPanelMetric({
   }
 }
 
-function phoneRootMetric({
-  height = 760,
-  width = 390,
-}: {
-  height?: number
-  width?: number
-} = {}): NativeLayoutMetric {
+function phoneRootMetric({ height = 760, width = 390 }: { height?: number; width?: number } = {}): NativeLayoutMetric {
   return containerMetric({ height, id: 'phone.root', width })
 }
 
@@ -674,18 +730,21 @@ function phoneScreenMetric(
   return containerMetric({ height, id: `phone.${state}.screen`, width })
 }
 
-function phoneSidebarDrawerMetric({
-  drawerWidth,
-  width,
-}: {
-  drawerWidth?: number
-  width: number
-}): NativeLayoutMetric[] {
+function phoneSidebarDrawerMetric({ drawerWidth, width }: { drawerWidth?: number; width: number }): NativeLayoutMetric[] {
   const actualDrawerWidth = drawerWidth ?? Math.round(width * nativePhoneShellMetricContract.drawerWidthRatio)
 
   return [
-    containerMetric({ height: 704, id: 'phone.sidebar.drawer', width: actualDrawerWidth }),
-    containerMetric({ height: 704, id: 'phone.sidebar.preview', width, x: actualDrawerWidth }),
+    containerMetric({
+      height: 704,
+      id: 'phone.sidebar.drawer',
+      width: actualDrawerWidth,
+    }),
+    containerMetric({
+      height: 704,
+      id: 'phone.sidebar.preview',
+      width,
+      x: actualDrawerWidth,
+    }),
   ]
 }
 
@@ -710,9 +769,7 @@ function noteListItemMetric(
   } = {},
 ): NativeLayoutMetric[] {
   const bodyOffsetX = bodyX ?? (selected ? desktopNoteItemParity.borderLeftWidth : 0)
-  const headerOffsetX = headerX ?? (selected
-    ? desktopNoteItemParity.selectedPaddingLeft
-    : desktopNoteItemParity.padding.left)
+  const headerOffsetX = headerX ?? (selected ? desktopNoteItemParity.selectedPaddingLeft : desktopNoteItemParity.padding.left)
   const bodyWidth = frameWidth - bodyOffsetX
   const headerWidth = bodyWidth - headerOffsetX - desktopNoteItemParity.padding.right
   const subtitleHeight = desktopNoteItemParity.snippetLineHeight * 2
@@ -811,14 +868,16 @@ function folderTreeRootMetric(
     x?: number
   } = {},
 ): NativeLayoutMetric[] {
-  return [{
-    height,
-    id: 'sidebar.folderTree.root',
-    platform: 'ios',
-    width: 247.5,
-    x,
-    y,
-  }]
+  return [
+    {
+      height,
+      id: 'sidebar.folderTree.root',
+      platform: 'ios',
+      width: 247.5,
+      x,
+      y,
+    },
+  ]
 }
 
 function sectionMetric(sectionId: string, rowHeight = 30): NativeLayoutMetric[] {
@@ -844,21 +903,7 @@ function sectionMetric(sectionId: string, rowHeight = 30): NativeLayoutMetric[] 
   ]
 }
 
-function containerMetric(
-  {
-    height,
-    id,
-    width = 247.5,
-    x = 0,
-    y = 0,
-  }: {
-    height: number
-    id: string
-    width?: number
-    x?: number
-    y?: number
-  },
-): NativeLayoutMetric {
+function containerMetric({ height, id, width = 247.5, x = 0, y = 0 }: { height: number; id: string; width?: number; x?: number; y?: number }): NativeLayoutMetric {
   return {
     height,
     id,

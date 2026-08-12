@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 import { Text } from '../components/ui/text'
-import { probeProps, type MobileLayoutProbe } from '../qa/mobileLayoutProbe'
+import { type MobileLayoutProbe, probeProps } from '../qa/mobileLayoutProbe'
 import { desktopPropertyParity } from './desktopParity'
 import { mobileColors, mobileSpace, mobileType } from './tokens'
 
@@ -25,8 +25,18 @@ export function MobilePropertyRow({
   const metricId = layoutProbeId ?? testID
   const content = (
     <>
-      <Text {...propertyProbe(layoutProbe, metricId, 'label')} style={styles.label} testID={testID ? `${testID}-label` : undefined}>{label}</Text>
-      <View {...propertyProbe(layoutProbe, metricId, 'value')} style={styles.value} testID={testID ? `${testID}-value` : undefined}>
+      <Text
+        {...propertyProbe(layoutProbe, metricId, 'label')}
+        style={styles.label}
+        testID={testID ? `${testID}-label` : undefined}
+      >
+        {label}
+      </Text>
+      <View
+        {...propertyProbe(layoutProbe, metricId, 'value')}
+        style={styles.value}
+        testID={testID ? `${testID}-value` : undefined}
+      >
         {typeof value === 'string' ? <Text style={styles.valueText}>{value}</Text> : value}
       </View>
     </>
@@ -38,7 +48,7 @@ export function MobilePropertyRow({
         {...propertyProbe(layoutProbe, metricId, 'row')}
         accessibilityLabel={accessibilityLabel ?? label}
         accessibilityRole="button"
-        style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null]}
+        style={styles.row}
         testID={testID}
         onPress={onPress}
       >
@@ -66,6 +76,8 @@ const styles = StyleSheet.create({
   },
   row: {
     minHeight: desktopPropertyParity.rowMinHeight,
+    maxHeight: 96,
+    flexShrink: 0,
     alignItems: 'center',
     flexDirection: 'row',
     gap: mobileSpace.sm,
@@ -73,12 +85,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: desktopPropertyParity.rowPaddingHorizontal,
   },
-  rowPressed: {
-    backgroundColor: mobileColors.graySoft,
-  },
   value: {
     flex: 1,
     alignItems: 'flex-end',
+    flexShrink: 1,
+    maxHeight: 96,
     minWidth: 0,
   },
   valueText: {
