@@ -119,7 +119,18 @@ function workspaceRootUri(
 }
 
 function workspaceLabel(rootUri: string, request?: ReadOnlyWorkspaceRequest) {
-  return request?.vaultLabel?.trim() || rootUri.split('/').filter(Boolean).at(-1) || 'Tolaria Vault'
+  const directoryName = rootUri.split('/').filter(Boolean).at(-1)
+  return request?.vaultLabel?.trim() || decodedDirectoryName(directoryName) || 'Tolaria Vault'
+}
+
+function decodedDirectoryName(directoryName: string | undefined) {
+  if (!directoryName) return ''
+
+  try {
+    return decodeURIComponent(directoryName)
+  } catch {
+    return directoryName
+  }
 }
 
 function emptyFileSystemSnapshot(request?: ReadOnlyWorkspaceRequest): MobileWorkspaceSnapshot {

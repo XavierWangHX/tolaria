@@ -11,6 +11,16 @@ type MovePathInput = {
 }
 
 describe('createFileSystemWorkspaceRepository', () => {
+  it('decodes the default native directory name for the vault label', () => {
+    const fileSystem = fakeWorkspaceFileSystem({})
+    fileSystem.defaultRootUri = () => 'file:///Tolaria%20Vault'
+    const repository = createFileSystemWorkspaceRepository(fileSystem)
+
+    const snapshot = repository.readSnapshot({ source: 'native' })
+
+    expect(snapshot.source?.label).toBe('Tolaria Vault')
+  })
+
   it('builds snapshots from markdown and saved-view files in the selected native vault root', () => {
     const fileSystem = fakeWorkspaceFileSystem({
       'views/active-essays.yml': 'name: Active Essays\nfilters:\n  type: Essay\n',

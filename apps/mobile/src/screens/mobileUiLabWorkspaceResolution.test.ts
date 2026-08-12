@@ -34,6 +34,14 @@ describe('resolveMobileUiWorkspace', () => {
 })
 
 describe('mobileUiRequestedWorkspaceSource', () => {
+  it('starts interactive launches on the native workspace instead of fixture data', () => {
+    expect(mobileUiRequestedWorkspaceSource({
+      hasNativeWorkspace: false,
+      requestedSource: null,
+      searchParams: new URLSearchParams(),
+    })).toBe('native')
+  })
+
   it('isolates deterministic editor probes from ambient dev-vault configuration', () => {
     expect(mobileUiRequestedWorkspaceSource({
       hasNativeWorkspace: false,
