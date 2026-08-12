@@ -51,6 +51,7 @@ import { useNativeWysiwygInputTransformProbe } from './MobileWysiwygInputTransfo
 import { MobileMathInlineBridge } from './MobileWysiwygMathBridge'
 import { useNativeWysiwygMathEditProbe } from './MobileWysiwygMathEditProbe.native'
 import { useNativeWysiwygMutationProbe } from './MobileWysiwygMutationProbe.native'
+import { MobileWysiwygContentBridge } from './MobileWysiwygContentBridge'
 import { MobileWysiwygOutlineBridge } from './MobileWysiwygOutlineBridge'
 import { useMobileWysiwygOutlineNavigation } from './MobileWysiwygOutlineNavigation.native'
 import { useFlushEditorDocument } from './MobileWysiwygPersistence.native'
@@ -183,6 +184,7 @@ const mobileTenTapBridgeExtensions = [
   ...TenTapStartKit,
   MobileCodeBlockBridge,
   MobileMathInlineBridge,
+  MobileWysiwygContentBridge,
   MobileWysiwygOutlineBridge,
   MobileTableBridge,
 ]
@@ -280,27 +282,28 @@ export function MobileWysiwygMarkdownEditor({
   )
 }
 
-function NativeTentapEditorSurface({
-  editor,
-  externalLinkState,
-  flushEditorDocument,
-  injectEditorCss,
-  insertAttachment,
-  insertMarkdownBlock,
-  insertPlainText,
-  insertWikilink,
-  layoutProbe,
-  notes,
-  onCloseExternalLinkSheet,
-  onCloseWikilinkPicker,
-  onImportAttachment,
-  onOpenExternalLinkSheet,
-  onOpenToolbarWikilinkPicker,
-  onRegisterEditorCommands,
-  pickerState,
-  sourceNote,
-  typeDefinitions,
-}: NativeTentapEditorSurfaceProps) {
+function NativeTentapEditorSurface(props: NativeTentapEditorSurfaceProps) {
+  const {
+    editor,
+    externalLinkState,
+    flushEditorDocument,
+    injectEditorCss,
+    insertAttachment,
+    insertMarkdownBlock,
+    insertPlainText,
+    insertWikilink,
+    layoutProbe,
+    notes,
+    onCloseExternalLinkSheet,
+    onCloseWikilinkPicker,
+    onImportAttachment,
+    onOpenExternalLinkSheet,
+    onOpenToolbarWikilinkPicker,
+    onRegisterEditorCommands,
+    pickerState,
+    sourceNote,
+    typeDefinitions,
+  } = props
   const actions = useNativeTentapEditorSurfaceActions({
     editor,
     externalLinkState,

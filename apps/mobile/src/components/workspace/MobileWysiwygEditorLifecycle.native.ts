@@ -25,6 +25,10 @@ type ContentSettableEditorBridge = EditorBridge & {
   setContent: (content: unknown) => void
 }
 
+type SilentContentSettableEditorBridge = EditorBridge & {
+  setContentSilently: (content: string) => void
+}
+
 type CssInjectableEditorBridge = EditorBridge & {
   injectCSS: (css: string, tag?: string) => void
 }
@@ -165,7 +169,11 @@ function finishInitialContentSync(refs: NativeTentapEditorRefs) {
 
 function setNativeInitialEditorContent(initialContent: string, refs: NativeTentapEditorRefs) {
   const editor = refs.editorRef.current
-  if (isContentSettableEditorBridge(editor)) editor.setContent(initialContent)
+  if (isSilentContentSettableEditorBridge(editor)) {
+    editor.setContentSilently(initialContent)
+  } else if (isContentSettableEditorBridge(editor)) {
+    editor.setContent(initialContent)
+  }
 }
 
 function clearNativeInitialEditorContentTimers(refs: NativeTentapEditorRefs) {
@@ -227,4 +235,12 @@ function shouldSyncInitialContent(
 
 function isCssInjectableEditorBridge(editor: EditorBridge | null): editor is CssInjectableEditorBridge {
   return typeof (editor as Partial<CssInjectableEditorBridge> | null)?.injectCSS === 'function'
+}
+
+function isSilentContentSettableEditorBridge(
+  editor: EditorBridge | null,
+): editor is SilentContentSettableEditorBridge {
+  return editor !== null
+    && 'setContentSilently' in editor
+    && typeof editor.setContentSilently === 'function'
 }

@@ -3,9 +3,10 @@ import { createRoot } from 'react-dom/client'
 import { EditorContent } from '@tiptap/react'
 import { TenTapStartKit, useTenTap } from '@10play/tentap-editor/web'
 import { MobileCodeBlockBridge } from './MobileWysiwygCodeBlockBridge'
+import { MobileWysiwygContentBridge } from './MobileWysiwygContentBridge'
 import { MobileMathInlineBridge } from './MobileWysiwygMathBridge'
-import { MobileTableBridge } from './MobileWysiwygTableBridge'
 import { MobileWysiwygOutlineBridge } from './MobileWysiwygOutlineBridge'
+import { MobileTableBridge } from './MobileWysiwygTableBridge'
 
 declare global {
   interface Window {
@@ -18,6 +19,7 @@ const mobileTenTapExtensions = [
   ...TenTapStartKit,
   MobileCodeBlockBridge,
   MobileMathInlineBridge,
+  MobileWysiwygContentBridge,
   MobileWysiwygOutlineBridge,
   MobileTableBridge,
 ]

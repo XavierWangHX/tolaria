@@ -110,6 +110,7 @@ Workspace surfaces now sit one level above those primitives:
 | `src/utils/externalUrl.ts` | Shared dependency-free external URL normalizer used by desktop link opening and mobile WYSIWYG link editing |
 | `MobileWysiwygMathHtml.ts` | Mobile KaTeX MathML rendering helper for native TenTap inline math nodes |
 | `MobileWysiwygTentapWebEditor.tsx` | Tolaria TenTap WebView entrypoint that bundles custom mobile Tiptap extensions |
+| `MobileWysiwygContentBridge.ts` | Silent programmatic-content bridge that prevents initial hydration from being persisted as a user edit |
 | `MobileWysiwygTentapEditorHtml.ts` | Generated custom TenTap WebView HTML used by the native WYSIWYG editor |
 | `nativeWysiwyg*Probe.ts` | Native Expo simulator proof models for mobile editor behavior that must be verified outside React Native Web |
 | `TabletWorkspace` | Tablet shell that owns selected-note state, panel layout, action-sheet forms, and editable snapshot state |
