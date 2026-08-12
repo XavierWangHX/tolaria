@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
 import { PanResponder, type PanResponderGestureState } from 'react-native'
 
-import { shouldStartHorizontalSwipe } from './horizontalSwipePolicy'
-
-const MIN_DISTANCE = 56
-const MIN_CAPTURE_DISTANCE = 12
-const MAX_VERTICAL_DRIFT = 40
+import {
+  horizontalSwipeCapturesMovement,
+  horizontalSwipeCommitted,
+  shouldStartHorizontalSwipe,
+  type HorizontalSwipeOffset,
+} from './horizontalSwipePolicy'
 
 type HorizontalSwipeProgress = {
   dx: number
@@ -34,9 +35,14 @@ export function useHorizontalSwipe({
   onSwipeProgress,
   onSwipeRight,
 }: HorizontalSwipeOptions) {
-  return useMemo(
-    () => createHorizontalSwipeHandlers({ captureOnStart, disabled, onSwipeEnd, onSwipeLeft, onSwipeProgress, onSwipeRight }),
+  const options = useMemo(
+    () => ({ captureOnStart, disabled, onSwipeEnd, onSwipeLeft, onSwipeProgress, onSwipeRight }),
     [captureOnStart, disabled, onSwipeEnd, onSwipeLeft, onSwipeProgress, onSwipeRight],
+  )
+
+  return useMemo(
+    () => createHorizontalSwipeHandlers(options),
+    [options],
   )
 }
 
@@ -73,16 +79,17 @@ function terminateResponder(onSwipeEnd: HorizontalSwipeOptions['onSwipeEnd']) {
 }
 
 function releaseHorizontalSwipe(
-  gesture: PanResponderGestureState,
+  gesture: HorizontalSwipeOffset,
   options: NormalizedHorizontalSwipeOptions,
+  allowCommit = true,
 ) {
-  const committed = isCommittedSwipe(gesture)
+  const committed = allowCommit && horizontalSwipeCommitted(gesture)
   if (committed) commitHorizontalSwipe(gesture, options)
   options.onSwipeEnd?.(committed)
 }
 
 function commitHorizontalSwipe(
-  gesture: PanResponderGestureState,
+  gesture: HorizontalSwipeOffset,
   options: Pick<HorizontalSwipeOptions, 'onSwipeLeft' | 'onSwipeRight'>,
 ) {
   const action = gesture.dx < 0 ? options.onSwipeLeft : options.onSwipeRight
@@ -91,10 +98,5 @@ function commitHorizontalSwipe(
 
 function shouldCapture(gesture: PanResponderGestureState, disabled: boolean) {
   if (disabled) return false
-  return Math.abs(gesture.dx) > MIN_CAPTURE_DISTANCE && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.4
-}
-
-function isCommittedSwipe(gesture: PanResponderGestureState) {
-  return Math.abs(gesture.dx) >= MIN_DISTANCE
-    && Math.abs(gesture.dy) <= MAX_VERTICAL_DRIFT
+  return horizontalSwipeCapturesMovement(gesture)
 }

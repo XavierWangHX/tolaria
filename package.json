@@ -40,6 +40,7 @@
     "mobile:qa:ios-simulator": "node apps/mobile/scripts/capture-ios-simulator.mjs --landscape --open-url 'exp://127.0.0.1:8081/--/?layoutProbe=1' --wait 3000",
     "mobile:qa:ios-click": "node apps/mobile/scripts/click-ios-simulator-element.mjs",
     "mobile:qa:ios-wysiwyg": "node apps/mobile/scripts/capture-ios-simulator.mjs --landscape --out /tmp/tolaria-mobile-ui-simulator/ipad-wysiwyg-editor.png --open-url 'exp://127.0.0.1:8081/--/?layoutProbe=1&editorMode=wysiwyg' --wait 5000",
+    "mobile:qa:ios-panel-gestures": "node apps/mobile/scripts/assert-ios-panel-gestures.mjs",
     "mobile:qa:ios-layout": "node apps/mobile/scripts/assert-ios-layout-metrics.mjs --open-url 'exp://127.0.0.1:8081/--/?layoutProbe=1&tabletPanels=all' --wait 3000",
     "mobile:qa:ios-phone-layout": "pnpm mobile:qa:ios-phone-layout:list && pnpm mobile:qa:ios-phone-layout:sidebar && pnpm mobile:qa:ios-phone-layout:properties",
     "mobile:qa:ios-phone-layout:list": "node apps/mobile/scripts/assert-ios-layout-metrics.mjs --phone-state list --open-url 'exp://127.0.0.1:8081/--/?layoutProbe=1&phoneState=list' --wait 3000",

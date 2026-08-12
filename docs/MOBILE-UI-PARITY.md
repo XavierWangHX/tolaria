@@ -93,6 +93,8 @@ The same Playwright suite also compares the primary tablet-landscape screen agai
 
 Use it after launching Expo on iOS with `pnpm mobile:ios`. The command refreshes Expo Go before capture, so the artifact matches the native app surface rather than Mobile Safari, the Expo web build, or a stale foreground Simulator app. The native QA scripts reject `http://` and `https://` open URLs because those launch Mobile Safari; automated native acceptance must use `exp://`, `exps://`, or `tolaria://` deep links.
 
+`pnpm mobile:qa:ios-panel-gestures` validates the installed development build's adaptive tablet chrome in landscape. It launches the fixture workspace, performs real drags through the visible Simulator window, and asserts the accessibility tree after hiding and revealing the left chrome and Properties panel. The test maps React Native layout coordinates onto the rotated Simulator window before injecting the drag; direct framebuffer coordinates are not reliable when the iPad simulator is rotated.
+
 For native interaction QA, click React Native controls by their exact `testID` before capturing the next screen:
 
 ```bash

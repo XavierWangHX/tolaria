@@ -350,15 +350,29 @@ function adjacentVisibleNoteId(
 function TabletLeftChromeHost(props: TabletSidebarHostProps) {
   const { gestures } = props
 
-  if (!gestures.leftChromeVisible) return <SwipeRail edge="left" swipeHandlers={gestures.leftChromeRevealSwipe} />
+  if (!gestures.leftChromeVisible) {
+    return (
+      <SwipeRail
+        edge="left"
+        swipeHandlers={gestures.leftChromeRevealSwipe}
+        testID="tablet-left-chrome-reveal-rail"
+      />
+    )
+  }
 
   return (
     <NativeAnimated.View
-      {...gestures.leftChromeSwipe}
+      {...webSwipeHandlers(gestures.leftChromeSwipe)}
       style={[styles.leftChromeHost, gestures.leftChromeMotionStyle]}
     >
       <TabletSidebarHost {...props} />
       <TabletNoteListHost {...props} />
+      <SwipeRail
+        edge="right"
+        overlay
+        swipeHandlers={gestures.leftChromeSwipe}
+        testID="tablet-left-chrome-hide-rail"
+      />
     </NativeAnimated.View>
   )
 }
@@ -590,51 +604,59 @@ function TabletEditorChromeToggle({ gestures }: { gestures: TabletPanelGestures 
   )
 }
 
-function TabletPropertiesPanelHost({
-  compactTablet,
-  gestures,
-  layoutProbe,
-  onAddProperty,
-  onAddRelationship,
-  onDeleteProperty,
-  onEditProperty,
-  onFixInvalidFrontmatter,
-  onInitializeProperties,
-  onOpenChangeNoteType,
-  onOpenCreateTypeWithName,
-  onEnterNeighborhood,
-  onRemoveRelationship,
-  onSelectNote,
-  selectedNote,
-  snapshot,
-}: TabletPropertiesPanelHostProps) {
-  const referenceGroups = useMobileInspectorReferenceGroups(selectedNote, snapshot)
+function TabletPropertiesPanelHost(props: TabletPropertiesPanelHostProps) {
+  const { gestures } = props
+  const referenceGroups = useMobileInspectorReferenceGroups(props.selectedNote, props.snapshot)
 
-  if (!gestures.propertiesPanelVisible) return <SwipeRail edge="right" swipeHandlers={gestures.propertiesRevealSwipe} />
+  if (!gestures.propertiesPanelVisible) {
+    return (
+      <SwipeRail
+        edge="right"
+        swipeHandlers={gestures.propertiesRevealSwipe}
+        testID="tablet-properties-reveal-rail"
+      />
+    )
+  }
 
   return (
-    <NativeAnimated.View {...gestures.propertiesSwipe} style={[styles.panelHost, gestures.propertiesMotionStyle]}>
-      <MobilePropertiesPanel
-        compact={compactTablet}
-        layoutProbe={layoutProbe}
-        note={selectedNote}
-        onAddProperty={onAddProperty}
-        onAddRelationship={onAddRelationship}
-        onDeleteProperty={onDeleteProperty}
-        onEditProperty={onEditProperty}
-        onCreateMissingType={onOpenCreateTypeWithName}
-        onFixInvalidFrontmatter={onFixInvalidFrontmatter}
-        onInitializeProperties={onInitializeProperties}
-        onOpenChangeNoteType={onOpenChangeNoteType}
-        onEnterNeighborhood={onEnterNeighborhood}
-        onSelectNote={onSelectNote}
-        onRemoveRelationship={onRemoveRelationship}
-        propertyDisplayModes={snapshot.vaultConfig?.propertyDisplayModes}
-        referenceGroups={referenceGroups}
-        typeDefinitions={snapshot.typeDefinitions}
+    <NativeAnimated.View
+      {...webSwipeHandlers(gestures.propertiesSwipe)}
+      style={[styles.panelHost, gestures.propertiesMotionStyle]}
+    >
+      <MobilePropertiesPanel {...propertiesPanelProps(props, referenceGroups)} />
+      <SwipeRail
+        edge="left"
+        overlay
+        swipeHandlers={gestures.propertiesSwipe}
+        testID="tablet-properties-hide-rail"
       />
     </NativeAnimated.View>
   )
+}
+
+function propertiesPanelProps(
+  props: TabletPropertiesPanelHostProps,
+  referenceGroups: ReturnType<typeof useMobileInspectorReferenceGroups>,
+) {
+  return {
+    compact: props.compactTablet,
+    layoutProbe: props.layoutProbe,
+    note: props.selectedNote,
+    onAddProperty: props.onAddProperty,
+    onAddRelationship: props.onAddRelationship,
+    onCreateMissingType: props.onOpenCreateTypeWithName,
+    onDeleteProperty: props.onDeleteProperty,
+    onEditProperty: props.onEditProperty,
+    onEnterNeighborhood: props.onEnterNeighborhood,
+    onFixInvalidFrontmatter: props.onFixInvalidFrontmatter,
+    onInitializeProperties: props.onInitializeProperties,
+    onOpenChangeNoteType: props.onOpenChangeNoteType,
+    onRemoveRelationship: props.onRemoveRelationship,
+    onSelectNote: props.onSelectNote,
+    propertyDisplayModes: props.snapshot.vaultConfig?.propertyDisplayModes,
+    referenceGroups,
+    typeDefinitions: props.snapshot.typeDefinitions,
+  }
 }
 
 type ActionSheetHostProps = TabletWorkspaceChromeProps & {
@@ -896,12 +918,33 @@ function actionSheetViewHandlers(props: ActionSheetHostProps) {
 
 function SwipeRail({
   edge,
+  overlay = false,
   swipeHandlers,
+  testID,
 }: {
   edge: 'left' | 'right'
+  overlay?: boolean
   swipeHandlers: ReturnType<typeof useHorizontalSwipe>
+  testID: string
 }) {
-  return <View {...swipeHandlers} style={[styles.swipeRail, edge === 'right' ? styles.swipeRailRight : null]} />
+  return (
+    <View
+      {...swipeHandlers}
+      collapsable={false}
+      style={[
+        styles.swipeRail,
+        edge === 'right' ? styles.swipeRailRight : null,
+        overlay ? styles.swipeRailOverlay : null,
+        overlay && edge === 'left' ? styles.swipeRailOverlayLeft : null,
+        overlay && edge === 'right' ? styles.swipeRailOverlayRight : null,
+      ]}
+      testID={testID}
+    />
+  )
+}
+
+function webSwipeHandlers(swipeHandlers: ReturnType<typeof useHorizontalSwipe>) {
+  return Platform.OS === 'web' ? swipeHandlers : {}
 }
 
 const styles = StyleSheet.create({
@@ -934,5 +977,20 @@ const styles = StyleSheet.create({
     borderLeftColor: mobileColors.border,
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderRightWidth: 0,
+  },
+  swipeRailOverlay: {
+    backgroundColor: 'transparent',
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    bottom: 0,
+    position: 'absolute',
+    top: 0,
+    zIndex: 10,
+  },
+  swipeRailOverlayLeft: {
+    left: 0,
+  },
+  swipeRailOverlayRight: {
+    right: 0,
   },
 })
