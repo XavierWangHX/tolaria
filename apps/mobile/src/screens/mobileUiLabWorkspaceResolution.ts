@@ -40,11 +40,13 @@ const configuredWorkspaceSources: Record<string, NonNullable<ReadOnlyWorkspaceRe
 }
 
 export function mobileUiRequestedWorkspaceSource({
+  hasDevVaultUrl = false,
   hasNativeWorkspace,
   platform = typeof document === 'undefined' ? 'native' : 'web',
   requestedSource,
   searchParams,
 }: {
+  hasDevVaultUrl?: boolean
   hasNativeWorkspace: boolean
   platform?: string
   requestedSource: string | null
@@ -52,9 +54,23 @@ export function mobileUiRequestedWorkspaceSource({
 }): NonNullable<ReadOnlyWorkspaceRequest['source']> {
   const qaSource = qaWorkspaceSource(requestedSource, searchParams)
   if (qaSource) return qaSource
-  if (hasNativeWorkspace && !requestedSource) return 'native'
+  if (shouldUseNativeWorkspace({ hasDevVaultUrl, hasNativeWorkspace, requestedSource })) return 'native'
   if (!requestedSource) return unconfiguredWorkspaceSource(platform, searchParams)
   return configuredWorkspaceSources[requestedSource] ?? 'fixture'
+}
+
+function shouldUseNativeWorkspace({
+  hasDevVaultUrl,
+  hasNativeWorkspace,
+  requestedSource,
+}: {
+  hasDevVaultUrl: boolean
+  hasNativeWorkspace: boolean
+  requestedSource: string | null
+}) {
+  if (!hasNativeWorkspace) return false
+  if (!requestedSource) return true
+  return requestedSource === 'dev-vault' && !hasDevVaultUrl
 }
 
 function qaWorkspaceSource(

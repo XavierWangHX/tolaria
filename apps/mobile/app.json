@@ -8,7 +8,11 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tolaria.mobile.dev"
+      "bundleIdentifier": "com.tolaria.mobile.dev",
+      "infoPlist": {
+        "LSSupportsOpeningDocumentsInPlace": true,
+        "UIFileSharingEnabled": true
+      }
     },
     "android": {
       "package": "com.tolaria.mobile.dev"

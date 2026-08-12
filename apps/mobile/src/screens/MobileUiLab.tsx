@@ -270,6 +270,7 @@ function currentSnapshotSource(
 ): NonNullable<ReadOnlyWorkspaceRequest['source']> {
   const requestedSource = searchParams.get('source') ?? envValue('EXPO_PUBLIC_TOLARIA_WORKSPACE_SOURCE')
   return mobileUiRequestedWorkspaceSource({
+    hasDevVaultUrl: currentDevVaultUrl(searchParams) !== null,
     hasNativeWorkspace: nativeWorkspace !== null,
     requestedSource,
     searchParams,

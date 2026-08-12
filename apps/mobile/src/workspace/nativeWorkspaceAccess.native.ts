@@ -1,5 +1,5 @@
 import { requireOptionalNativeModule } from 'expo'
-import type { NativeWorkspaceAccessModule } from './nativeWorkspaceAccess'
+import type { NativeWorkspaceAccessModule, NativeWorkspaceRecord } from './nativeWorkspaceAccess'
 
 let cachedModule: NativeWorkspaceAccessModule | null | undefined
 
@@ -9,30 +9,47 @@ export function optionalNativeWorkspaceAccessModule(): NativeWorkspaceAccessModu
   return cachedModule
 }
 
-export async function rememberNativeWorkspace(
+export async function importNativeWorkspace(
   uri: string,
   module: NativeWorkspaceAccessModule | null = optionalNativeWorkspaceAccessModule(),
-): Promise<boolean> {
-  if (!module) return false
+): Promise<NativeWorkspaceRecord | null> {
+  if (!module) return null
 
   try {
-    return await module.rememberWorkspace(uri)
+    return normalizedWorkspaceRecord(await module.importWorkspace(uri))
   } catch {
-    return false
+    return null
+  }
+}
+
+export async function pickAndImportNativeWorkspace(
+  module: NativeWorkspaceAccessModule | null = optionalNativeWorkspaceAccessModule(),
+): Promise<NativeWorkspaceRecord | null> {
+  if (!module?.pickAndImportWorkspace) return null
+
+  try {
+    return normalizedWorkspaceRecord(await module.pickAndImportWorkspace())
+  } catch {
+    return null
   }
 }
 
 export async function restoreNativeWorkspace(
   module: NativeWorkspaceAccessModule | null = optionalNativeWorkspaceAccessModule(),
-): Promise<string | null> {
+): Promise<NativeWorkspaceRecord | null> {
   if (!module) return null
 
   try {
-    const normalized = (await module.restoreWorkspace())?.trim()
-    return normalized || null
+    return normalizedWorkspaceRecord(await module.restoreWorkspace())
   } catch {
     return null
   }
+}
+
+function normalizedWorkspaceRecord(record: NativeWorkspaceRecord | null): NativeWorkspaceRecord | null {
+  const uri = record?.uri.trim()
+  const label = record?.label.trim()
+  return uri && label ? { label, uri } : null
 }
 
 export type { NativeWorkspaceAccessModule } from './nativeWorkspaceAccess'

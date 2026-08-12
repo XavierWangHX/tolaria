@@ -1,6 +1,8 @@
 import { mobileWorkspaceAlias } from './mobileWorkspaceAlias'
 import {
-  rememberNativeWorkspace,
+  importNativeWorkspace,
+  optionalNativeWorkspaceAccessModule,
+  pickAndImportNativeWorkspace,
   restoreNativeWorkspace,
   type NativeWorkspaceAccessModule,
 } from './nativeWorkspaceAccess'
@@ -29,20 +31,43 @@ let expoFileSystemModule: ExpoFileSystemPickerModule | null = null
 
 export async function pickNativeWorkspaceDirectory(
   initialUri?: string | null,
+  module: NativeWorkspaceAccessModule | null = optionalNativeWorkspaceAccessModule(),
 ): Promise<NativeWorkspaceSelection | null> {
-  const selection = await pickNativeWorkspaceDirectoryWithPicker(
+  return pickNativeWorkspaceDirectoryWithDependencies(
     expoFileSystem().Directory.pickDirectoryAsync,
-    initialUri ?? undefined,
+    module,
+    initialUri,
   )
-  if (selection) await rememberNativeWorkspace(selection.vaultRootUri)
-  return selection
+}
+
+export async function pickNativeWorkspaceDirectoryWithDependencies(
+  pickDirectory: WorkspaceDirectoryPicker,
+  module: NativeWorkspaceAccessModule | null,
+  initialUri?: string | null,
+): Promise<NativeWorkspaceSelection | null> {
+  if (module?.pickAndImportWorkspace) {
+    const imported = await pickAndImportNativeWorkspace(module)
+    return imported
+      ? nativeWorkspaceSelectionFromDirectory({ name: imported.label, uri: imported.uri })
+      : null
+  }
+
+  const picked = await pickNativeWorkspaceDirectoryWithPicker(pickDirectory, initialUri ?? undefined)
+  if (!picked) return null
+
+  const imported = await importNativeWorkspace(picked.vaultRootUri, module)
+  return imported
+    ? nativeWorkspaceSelectionFromDirectory({ name: imported.label, uri: imported.uri })
+    : picked
 }
 
 export async function restoreNativeWorkspaceDirectory(
   module?: NativeWorkspaceAccessModule | null,
 ): Promise<NativeWorkspaceSelection | null> {
-  const uri = await restoreNativeWorkspace(module)
-  return uri ? nativeWorkspaceSelectionFromDirectory({ uri }) : null
+  const restored = await restoreNativeWorkspace(module)
+  return restored
+    ? nativeWorkspaceSelectionFromDirectory({ name: restored.label, uri: restored.uri })
+    : null
 }
 
 export async function pickNativeWorkspaceDirectoryWithPicker(

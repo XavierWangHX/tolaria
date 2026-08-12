@@ -14,9 +14,9 @@ export function useNativeWorkspace() {
   useEffect(() => restoreWorkspace(accessModule, setSelection, setRestorePending), [accessModule])
 
   const open = useCallback(async (initialUri?: string | null) => {
-    const nextSelection = await pickNativeWorkspaceDirectory(initialUri)
+    const nextSelection = await pickNativeWorkspaceDirectory(initialUri, accessModule)
     if (nextSelection) setSelection(nextSelection)
-  }, [])
+  }, [accessModule])
 
   return { open, restorePending, selection }
 }

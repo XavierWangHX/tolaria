@@ -107,11 +107,22 @@ describe('mobileUiRequestedWorkspaceSource', () => {
 
   it('keeps an explicitly configured real-vault source ahead of a remembered native vault', () => {
     expect(mobileUiRequestedWorkspaceSource({
+      hasDevVaultUrl: true,
       hasNativeWorkspace: true,
       platform: 'ios',
       requestedSource: 'dev-vault',
       searchParams: new URLSearchParams('layoutProbe=1'),
     })).toBe('dev')
+  })
+
+  it('falls back from an incomplete development launch to a remembered native vault', () => {
+    expect(mobileUiRequestedWorkspaceSource({
+      hasDevVaultUrl: false,
+      hasNativeWorkspace: true,
+      platform: 'ios',
+      requestedSource: 'dev-vault',
+      searchParams: new URLSearchParams(),
+    })).toBe('native')
   })
 
   it('uses deterministic fixture data for an unconfigured layout probe', () => {
