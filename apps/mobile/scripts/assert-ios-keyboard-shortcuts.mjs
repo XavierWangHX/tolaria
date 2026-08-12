@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* global console, process, setTimeout */
+/* global console, process, setTimeout, URL */
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, statSync } from 'node:fs'
@@ -134,11 +134,28 @@ async function openProbeUrl(device, config) {
 
 async function sendKeyboardShortcutProofsWithHid(device, { bundleId, openUrl, waitMs }) {
   for (const shortcut of shortcutProofs) {
-    launchNativeProbe(device, bundleId, keyboardShortcutProbeUrl(openUrl, shortcut.id))
-    await sleep(Math.max(waitMs, 4500))
+    const probeUrl = keyboardShortcutProbeUrl(openUrl, shortcut.id)
+    launchNativeProbe(device, bundleId, probeUrl)
+    await waitForNativeShortcutBridge(device, qaRunFromProbeUrl(probeUrl), waitMs)
     sendHidKeySequence(device, shortcut.keyCodes)
     await sleep(650)
   }
+}
+
+async function waitForNativeShortcutBridge(device, qaRun, waitMs) {
+  const deadline = Date.now() + Math.max(waitMs, 9000)
+  while (Date.now() < deadline) {
+    const logs = collectSimulatorLogs(device, { last: defaultLogWindow })
+    if (logs.includes(`\"qaRun\":\"${qaRun}\"`)) return
+    await sleep(250)
+  }
+  throw new Error('Native keyboard shortcut bridge did not become ready before HID delivery')
+}
+
+function qaRunFromProbeUrl(probeUrl) {
+  const value = new URL(probeUrl).searchParams.get('qaRun')
+  if (!value) throw new Error('Native keyboard shortcut probe URL is missing qaRun')
+  return value
 }
 
 function launchNativeProbe(device, bundleId, probeUrl) {
@@ -200,37 +217,29 @@ async function sendKeyboardShortcutSequenceWithAppleScript() {
 }
 
 function sendHidKeySequence(device, keyCodes) {
-  const invocation = xcodebuildMcpInvocation()
-  run(invocation.command, [
-    ...invocation.args,
-    'ui-automation',
-    'key-sequence',
-    '--simulator-id',
-    device,
-    '--key-codes',
-    keyCodes.join(','),
-    '--delay',
-    '0.2',
-    '--output',
-    'json',
-  ])
+  const axe = axeBinary()
+  const key = keyCodes.at(-1)
+  const modifiers = keyCodes.slice(0, -1)
+  if (key === undefined) throw new Error('HID shortcut requires at least one key code')
+
+  if (modifiers.length > 0) {
+    run(axe, ['key-combo', '--modifiers', modifiers.join(','), '--key', String(key), '--udid', device])
+    return
+  }
+
+  run(axe, ['key', String(key), '--udid', device])
 }
 
-function xcodebuildMcpInvocation() {
-  if (process.env.XCODEBUILDMCP_BIN) {
-    return { args: [], command: process.env.XCODEBUILDMCP_BIN }
-  }
+function axeBinary() {
+  if (process.env.MOBILE_QA_AXE_PATH) return process.env.MOBILE_QA_AXE_PATH
 
-  const localBinary = commandPath('xcodebuildmcp')
-  if (localBinary) return { args: [], command: localBinary }
+  const command = commandPath('axe')
+  if (command) return command
 
-  const cachedBinary = cachedXcodebuildMcpBinary()
-  if (cachedBinary) return { args: [], command: cachedBinary }
+  const cachedBinary = cachedAxeBinary()
+  if (cachedBinary) return cachedBinary
 
-  return {
-    args: ['exec', '--yes', 'xcodebuildmcp@latest', '--'],
-    command: 'npm',
-  }
+  throw new Error('AXe is required for native HID shortcut QA. Set MOBILE_QA_AXE_PATH.')
 }
 
 function commandPath(command) {
@@ -238,19 +247,33 @@ function commandPath(command) {
   return result.status === 0 ? result.stdout.trim() : ''
 }
 
-function cachedXcodebuildMcpBinary() {
+function cachedAxeBinary() {
   const cacheRoot = npmCachePath()
   if (!cacheRoot) return ''
 
-  const npxRoot = join(cacheRoot, '_npx')
-  if (!existsSync(npxRoot)) return ''
-
-  const candidates = readdirSync(npxRoot)
-    .map((entry) => join(npxRoot, entry, 'node_modules', '.bin', 'xcodebuildmcp'))
+  const candidates = axeSearchRoots(cacheRoot)
+    .flatMap((root) => axeCandidates(root))
     .filter(existsSync)
     .sort((left, right) => mtimeMs(right) - mtimeMs(left))
 
   return candidates[0] ?? ''
+}
+
+function axeSearchRoots(cacheRoot) {
+  return [join(cacheRoot, '_npx'), join(cacheRoot, 'dlx')].filter(existsSync)
+}
+
+function axeCandidates(root) {
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(root, entry.name)
+    if (!entry.isDirectory()) return []
+    const direct = join(path, 'node_modules', 'xcodebuildmcp', 'bundled', 'axe')
+    const nested = readdirSync(path, { withFileTypes: true })
+      .filter((child) => child.isDirectory())
+      .map((child) => join(path, child.name, 'node_modules', 'xcodebuildmcp', 'bundled', 'axe'))
+
+    return [direct, ...nested]
+  })
 }
 
 function npmCachePath() {
