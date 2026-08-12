@@ -45,10 +45,7 @@ export function useNativeWysiwygMutationProbe({
     }
     const runProbe = () => {
       if (disposed) return
-      if (!refs.acceptsEditorChangesRef.current) {
-        scheduleProbe(mutationProbeRetryDelayMs)
-        return
-      }
+      enableNativeWysiwygMutationProbe(refs)
 
       const editor = refs.editorRef.current
       if (!isContentSettableEditorBridge(editor)) {
@@ -70,6 +67,10 @@ export function useNativeWysiwygMutationProbe({
       if (refs.saveTimerRef.current) clearTimeout(refs.saveTimerRef.current)
     }
   }, [enabled, flushEditorDocument, refs, vaultRootUri])
+}
+
+export function enableNativeWysiwygMutationProbe(refs: NativeWysiwygMutationProbeRefs): void {
+  refs.acceptsEditorChangesRef.current = true
 }
 
 export function publishNativeWysiwygMutationProof(noteId: string, content: string, json?: unknown): void {
