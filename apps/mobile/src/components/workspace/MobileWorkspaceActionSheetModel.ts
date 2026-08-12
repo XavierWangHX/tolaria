@@ -4,6 +4,8 @@ import { mobileSpace } from '../../ui/tokens'
 export const mobileActionSheetLayoutContract = {
   contentGap: mobileSpace.md,
   contentPadding: mobileSpace.lg,
+  footerPaddingBottom: mobileSpace.lg,
+  footerPaddingHorizontal: mobileSpace.lg,
   overlayPaddingHorizontal: mobileSpace.xl,
   overlayPaddingVertical: desktopPanelParity.toolbarHeight + mobileSpace.xl,
   longFormSheetMinHeight: 320,

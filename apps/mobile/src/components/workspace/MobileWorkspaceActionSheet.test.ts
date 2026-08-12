@@ -21,6 +21,8 @@ describe('mobile workspace action sheet', () => {
     expect(mobileActionSheetLayoutContract).toEqual({
       contentGap: mobileSpace.md,
       contentPadding: mobileSpace.lg,
+      footerPaddingBottom: mobileSpace.lg,
+      footerPaddingHorizontal: mobileSpace.lg,
       longFormSheetMinHeight: 320,
       overlayPaddingHorizontal: mobileSpace.xl,
       overlayPaddingVertical: desktopPanelParity.toolbarHeight + mobileSpace.xl,

@@ -383,17 +383,19 @@ function SingleTextFieldContent({ config }: { config: SingleTextFieldConfig }) {
   } = config
 
   return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" style={styles.scrollArea}>
-      <MobileTextInput
-        autoFocus={mobileWorkspaceFormSheetAutoFocus}
-        label={inputLabel}
-        placeholder={inputPlaceholder}
-        testID={inputTestId}
-        value={inputValue}
-        onChangeText={onChangeText}
-      />
-      {extraContent}
-      <SheetFooter>
+    <View style={styles.formBody}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" style={styles.scrollArea}>
+        <MobileTextInput
+          autoFocus={mobileWorkspaceFormSheetAutoFocus}
+          label={inputLabel}
+          placeholder={inputPlaceholder}
+          testID={inputTestId}
+          value={inputValue}
+          onChangeText={onChangeText}
+        />
+        {extraContent}
+      </ScrollView>
+      <SheetFooter pinned>
         {secondaryAction}
         <MobileButton label={mobileText('common.cancel')} variant="ghost" onPress={onCancel} />
         <MobileButton
@@ -403,7 +405,7 @@ function SingleTextFieldContent({ config }: { config: SingleTextFieldConfig }) {
           onPress={onSubmit}
         />
       </SheetFooter>
-    </ScrollView>
+    </View>
   )
 }
 
@@ -1092,8 +1094,8 @@ function ActionRow({
   )
 }
 
-function SheetFooter({ children }: { children: ReactNode }) {
-  return <View style={styles.footer}>{children}</View>
+function SheetFooter({ children, pinned = false }: { children: ReactNode; pinned?: boolean }) {
+  return <View style={[styles.footer, pinned ? styles.pinnedFooter : null]}>{children}</View>
 }
 
 function actionTitle(action: MobileWorkspaceAction, propertyName: string) {
@@ -1144,6 +1146,10 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: mobileSpace.md,
   },
+  formBody: {
+    flexShrink: 1,
+    minHeight: 0,
+  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
@@ -1156,6 +1162,10 @@ const styles = StyleSheet.create({
   scrollArea: {
     flexShrink: 1,
     minHeight: 0,
+  },
+  pinnedFooter: {
+    paddingBottom: mobileActionSheetLayoutContract.footerPaddingBottom,
+    paddingHorizontal: mobileActionSheetLayoutContract.footerPaddingHorizontal,
   },
   suggestionList: {
     gap: mobileSpace.xs,
