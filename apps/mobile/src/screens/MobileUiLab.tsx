@@ -5,7 +5,6 @@ import { TabletWorkspace } from './TabletWorkspace'
 import type { TabletTransitionProbeMode } from './tabletWorkspaceTypes'
 import { readOnlyWorkspaceRepository, type ReadOnlyWorkspaceRequest } from '../workspace/readOnlyWorkspaceRepository'
 import {
-  createDevVaultWorkspaceRepository,
   fetchDevVaultWorkspaceState,
   type DevVaultWorkspaceState,
 } from '../workspace/devVaultWorkspaceRepository'
@@ -19,7 +18,6 @@ import {
 } from '../qa/nativeSourceSelectionProbe'
 import {
   nativeWysiwygMutationProbeEnabled,
-  nativeWysiwygMutationProbeInitialContent,
 } from '../qa/nativeWysiwygMutationProbe'
 import {
   nativeWysiwygPersistenceProbeEnabled,
@@ -80,6 +78,7 @@ import {
 import { nativeMobileLaunchSearch } from '../native/mobileNativeKeyCommands'
 import { setMobileLayoutMetricSinkUrl } from '../qa/mobileLayoutProbe'
 import type { MobileNote, MobileWorkspaceSnapshot } from '../workspace/mobileWorkspaceModel'
+import { mobileSnapshotWithWysiwygMutationProbeContent } from './mobileUiLabWysiwygMutationSnapshot'
 import {
   localVaultEditorBlocks,
   localVaultEditorBullets,
@@ -94,6 +93,10 @@ import {
 } from './mobileUiLabSelectedNote'
 import { requestedActionSheetQaTarget } from './mobileActionSheetQaTarget'
 import { tabletTransitionProbeMode } from './tabletTransitionProbeMode'
+import {
+  mobileUiRequestedWorkspaceSource,
+  resolveMobileUiWorkspace,
+} from './mobileUiLabWorkspaceResolution'
 
 type DevVaultLoadState =
   | { status: 'idle' | 'loading' }
@@ -241,14 +244,11 @@ function currentSnapshotSource(
   nativeWorkspace: NativeWorkspaceSelection | null,
 ): NonNullable<ReadOnlyWorkspaceRequest['source']> {
   const requestedSource = searchParams.get('source') ?? envValue('EXPO_PUBLIC_TOLARIA_WORKSPACE_SOURCE')
-  if (nativeWorkspace) return 'native'
-  if (requestedSource === 'native-vault') return 'native'
-  if (devVaultSourceRequested(requestedSource)) return 'dev'
-  return requestedSource === 'host-vault' ? 'host' : 'fixture'
-}
-
-function devVaultSourceRequested(source: string | null) {
-  return source === 'dev-vault' || source === 'local-vault'
+  return mobileUiRequestedWorkspaceSource({
+    hasNativeWorkspace: nativeWorkspace !== null,
+    requestedSource,
+    searchParams,
+  })
 }
 
 function editorMode(searchParams: URLSearchParams) {
@@ -350,12 +350,13 @@ function useMobileUiWorkspaceSource({
     vaultRootUri: currentVaultRootUri(searchParams, nativeWorkspace),
   }, { workspacePersistenceProbe, wysiwygPersistenceProbe })
   const probeRepository = mobileRepositoryForProbes({ workspacePersistenceProbe, wysiwygPersistenceProbe })
-  const repository = source === 'dev' && devVault.status === 'ready'
-    ? createDevVaultWorkspaceRepository(devVault.state)
-    : probeRepository
-  const baseSnapshot = source === 'dev' && devVault.status === 'ready'
-    ? devVault.state.snapshot
-    : repository.readSnapshot(repositoryRequest)
+  const { baseSnapshot, repository } = resolveMobileUiWorkspace({
+    devVaultState: devVault.status === 'ready' ? devVault.state : null,
+    persistenceProbeEnabled: workspacePersistenceProbe || wysiwygPersistenceProbe,
+    probeRepository,
+    repositoryRequest,
+    source,
+  })
 
   return {
     baseSnapshot,
@@ -424,7 +425,9 @@ function mobileSnapshotForProbes(
   },
 ) {
   if (tableOfContentsProbe) return snapshotWithTableOfContentsProbeContent(snapshot)
-  if (wysiwygMutationProbe && !wysiwygPersistenceProbe) return snapshotWithWysiwygMutationProbeContent(snapshot)
+  if (wysiwygMutationProbe && !wysiwygPersistenceProbe) {
+    return mobileSnapshotWithWysiwygMutationProbeContent(snapshot)
+  }
 
   return snapshot
 }
@@ -454,26 +457,6 @@ function snapshotWithTableOfContentsProbeContent(snapshot: MobileWorkspaceSnapsh
     editorBullets,
     notes: snapshot.notes.map(seedSelectedNote),
     selectedNoteId,
-  }
-}
-
-function snapshotWithWysiwygMutationProbeContent(snapshot: MobileWorkspaceSnapshot): MobileWorkspaceSnapshot {
-  const selectedNoteId = snapshot.selectedNoteId ?? snapshot.notes[0]?.id
-  if (!selectedNoteId) return snapshot
-
-  const seedSelectedNote = (note: MobileNote) => {
-    if (note.id !== selectedNoteId || note.rawContent !== undefined) return note
-
-    return {
-      ...note,
-      rawContent: nativeWysiwygMutationProbeInitialContent(note),
-    }
-  }
-
-  return {
-    ...snapshot,
-    allNotes: snapshot.allNotes?.map(seedSelectedNote),
-    notes: snapshot.notes.map(seedSelectedNote),
   }
 }
 
