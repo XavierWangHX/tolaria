@@ -27,10 +27,6 @@ export const expoWorkspaceFileSystem: WorkspaceFileSystem = {
 
     workspaceDirectory(expoFileSystem(), rootUri, normalizedPath).create({ idempotent: true, intermediates: true })
   },
-  defaultRootUri: () => {
-    const { Directory, Paths } = expoFileSystem()
-    return new Directory(Paths.document, 'Tolaria Vault').uri
-  },
   deleteDirectory: (rootUri, relativePath) => {
     const normalizedPath = normalizedWorkspaceRelativePath(relativePath)
     if (!normalizedPath) return

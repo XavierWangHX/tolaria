@@ -119,7 +119,7 @@ export type MobileSidebarFolder = {
 }
 
 export type MobileSyncStatus = {
-  kind: 'conflict' | 'pullRequired' | 'synced' | 'writeFailed'
+  kind: 'conflict' | 'noVault' | 'pullRequired' | 'readOnly' | 'synced' | 'writeFailed'
   minutesAgo?: number
 }
 

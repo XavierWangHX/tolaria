@@ -16,7 +16,19 @@ describe('dev vault workspace repository', () => {
     })
 
     await expect(repository.readNoteContent(note, { source: 'dev' })).resolves.toBe('# Real vault note\n')
-    expect(repository.readSnapshot({ source: 'dev' })).toBe(snapshot)
+    expect(repository.readSnapshot({ source: 'dev' })).toEqual({
+      ...snapshot,
+      sync: { kind: 'readOnly' },
+    })
+  })
+
+  it('rejects writes because the development vault bridge is read-only', async () => {
+    const repository = createDevVaultWorkspaceRepository({
+      noteContents: {},
+      snapshot: workspaceScenarioForId('default'),
+    })
+
+    await expect(repository.persistWrites([], { source: 'dev' })).rejects.toThrow('read-only')
   })
 
   it('loads the workspace index without eagerly transferring every note body', async () => {

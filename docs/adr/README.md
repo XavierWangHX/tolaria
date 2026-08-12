@@ -233,7 +233,7 @@ proposed → active → superseded
 | [0174](0174-expo-react-native-mobile-ui-foundation.md) | Expo React Native mobile UI foundation | active |
 | [0175](0175-nativewind-react-native-reusables-mobile-primitives.md) | Nativewind and React Native Reusables for mobile primitives | active |
 | [0176](0176-expo-sdk-54-for-ipad-expo-go-preview.md) | Expo SDK 54 for iPad Expo Go preview | active |
-| [0177](0177-expo-file-system-mobile-vault-repository.md) | Expo FileSystem mobile vault repository | active |
+| [0177](0177-expo-file-system-mobile-vault-repository.md) | Expo FileSystem mobile vault repository | amended -> [0190](0190-explicit-session-scoped-ios-vault-selection.md) |
 | [0178](0178-expo-clipboard-mobile-deep-link-copy.md) | Expo Clipboard for mobile deep-link copy | active |
 | [0179](0179-mobile-folder-mutation-write-contract.md) | Mobile folder mutation write contract | active |
 | [0180](0180-mobile-note-move-write-contract.md) | Mobile note move write contract | active |
@@ -246,3 +246,4 @@ proposed → active → superseded
 | [0187](0187-mobile-tentap-code-block-node.md) | Mobile TenTap code block node | active |
 | [0188](0188-mobile-tentap-table-node.md) | Mobile TenTap table node | active |
 | [0189](0189-mobile-tentap-aligned-table-metadata.md) | Mobile TenTap aligned table metadata | active |
+| [0190](0190-explicit-session-scoped-ios-vault-selection.md) | Explicit session-scoped iOS vault selection | active |

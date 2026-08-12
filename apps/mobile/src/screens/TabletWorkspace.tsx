@@ -98,6 +98,9 @@ export function TabletWorkspace({
   wysiwygMutationProbe?: boolean
 }) {
   const controller = useTabletWorkspaceController({ repository, repositoryRequest, snapshot })
+  const onCreateNote = controller.snapshot.sync.kind === 'noVault' || controller.snapshot.sync.kind === 'readOnly'
+    ? onOpenNativeVault ?? controller.onOpenCreateNote
+    : controller.onOpenCreateNote
   const screenMode = useTabletScreenMode(forceDesktopPanels)
   useInitialActionSheetQaTarget(controller.onOpenActionSheetQaTarget, initialActionSheet)
 
@@ -131,6 +134,7 @@ export function TabletWorkspace({
         wysiwygWikilinkInsertProbe={wysiwygWikilinkInsertProbe}
         wysiwygMutationProbe={wysiwygMutationProbe}
         {...controller}
+        onOpenCreateNote={onCreateNote}
       />
       <MobileSyncStatusBar sync={controller.snapshot.sync} onOpenLocalVault={onOpenNativeVault} />
     </View>

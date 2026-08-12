@@ -11,14 +11,27 @@ type MovePathInput = {
 }
 
 describe('createFileSystemWorkspaceRepository', () => {
-  it('decodes the default native directory name for the vault label', () => {
-    const fileSystem = fakeWorkspaceFileSystem({})
-    fileSystem.defaultRootUri = () => 'file:///Tolaria%20Vault'
+  it('requires an explicitly selected native vault root', async () => {
+    const fileSystem = fakeWorkspaceFileSystem({
+      'Hidden QA Note.md': '# Hidden QA Note\n',
+    })
     const repository = createFileSystemWorkspaceRepository(fileSystem)
 
     const snapshot = repository.readSnapshot({ source: 'native' })
+    await repository.persistWrites([{
+      content: '# Phantom Note\n',
+      kind: 'createNote',
+      path: 'Phantom Note.md',
+    }], { source: 'native' })
 
-    expect(snapshot.source?.label).toBe('Tolaria Vault')
+    expect(snapshot).toMatchObject({
+      notes: [],
+      source: { totalNotes: 0, vaultPath: '' },
+      sync: { kind: 'noVault' },
+    })
+    expect(fileSystem.files()).toEqual({
+      'Hidden QA Note.md': '# Hidden QA Note\n',
+    })
   })
 
   it('builds snapshots from markdown and saved-view files in the selected native vault root', () => {
@@ -327,7 +340,6 @@ function fakeWorkspaceFileSystem(initialFiles: Record<string, string>): Workspac
     createDirectory: (_rootUri, relativePath) => {
       directories.add(relativePath)
     },
-    defaultRootUri: () => 'file:///default-vault',
     deleteDirectory: (_rootUri, relativePath) => {
       for (const path of [...directories]) {
         if (path === relativePath || path.startsWith(`${relativePath}/`)) directories.delete(path)

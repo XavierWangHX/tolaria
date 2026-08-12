@@ -109,8 +109,11 @@ const phoneGestureHandoffOptions = { gestureHandoff: true } satisfies PhoneState
 export function PhoneWorkspace(props: PhoneWorkspaceProps) {
   const { repository = fixtureReadOnlyWorkspaceRepository, repositoryRequest, snapshot } = props
   const controller = useTabletWorkspaceController({ repository, repositoryRequest, snapshot })
+  const onOpenCreateNote = controller.snapshot.sync.kind === 'noVault' || controller.snapshot.sync.kind === 'readOnly'
+    ? props.onOpenNativeVault ?? controller.onOpenCreateNote
+    : controller.onOpenCreateNote
   useInitialActionSheetQaTarget(controller.onOpenActionSheetQaTarget, props.initialActionSheet)
-  return <PhoneWorkspaceChrome {...props} controller={controller} />
+  return <PhoneWorkspaceChrome {...props} controller={{ ...controller, onOpenCreateNote }} />
 }
 
 function PhoneWorkspaceChrome(props: PhoneWorkspaceChromeProps) {

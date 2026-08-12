@@ -52,8 +52,8 @@ export function mobileUiRequestedWorkspaceSource({
 }): NonNullable<ReadOnlyWorkspaceRequest['source']> {
   if (hasNativeWorkspace) return 'native'
   if (hasPersistenceProbe(searchParams)) return 'native'
-  if (fixtureProbeParams.some((key) => searchParams.get(key) === '1')) return 'fixture'
-  if (!requestedSource) return platform === 'web' ? 'fixture' : 'native'
+  if (hasFixtureProbe(searchParams)) return 'fixture'
+  if (!requestedSource) return unconfiguredWorkspaceSource(platform, searchParams)
   return configuredWorkspaceSources[requestedSource] ?? 'fixture'
 }
 
@@ -70,9 +70,7 @@ export function resolveMobileUiWorkspace({
     : probeRepository
 
   return {
-    baseSnapshot: useDevVault
-      ? devVaultState.snapshot
-      : repository.readSnapshot(repositoryRequest),
+    baseSnapshot: repository.readSnapshot(repositoryRequest),
     repository,
   }
 }
@@ -80,4 +78,16 @@ export function resolveMobileUiWorkspace({
 function hasPersistenceProbe(searchParams: URLSearchParams): boolean {
   return searchParams.get('workspacePersistenceProbe') === '1'
     || searchParams.get('wysiwygPersistenceProbe') === '1'
+}
+
+function hasFixtureProbe(searchParams: URLSearchParams): boolean {
+  return fixtureProbeParams.some((key) => searchParams.get(key) === '1')
+}
+
+function unconfiguredWorkspaceSource(
+  platform: string,
+  searchParams: URLSearchParams,
+): NonNullable<ReadOnlyWorkspaceRequest['source']> {
+  if (searchParams.get('layoutProbe') === '1') return 'fixture'
+  return platform === 'web' ? 'fixture' : 'native'
 }

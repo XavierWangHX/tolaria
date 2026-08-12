@@ -51,6 +51,7 @@ function statusBarAction(onOpenLocalVault: (() => void) | undefined) {
 }
 
 function syncStatusColor(sync: MobileSyncStatus) {
+  if (sync.kind === 'noVault' || sync.kind === 'readOnly') return mobileColors.textMuted
   if (sync.kind === 'conflict') return mobileColors.danger
   if (sync.kind === 'writeFailed') return mobileColors.danger
   if (sync.kind === 'pullRequired') return mobileColors.orange
@@ -59,6 +60,8 @@ function syncStatusColor(sync: MobileSyncStatus) {
 }
 
 function syncStatusDetail(sync: MobileSyncStatus) {
+  if (sync.kind === 'noVault') return mobileText('status.vault.openLocal')
+  if (sync.kind === 'readOnly') return mobileText('status.sync.notSynced')
   if (sync.kind === 'conflict') return mobileText('status.sync.resolveConflicts')
   if (sync.kind === 'writeFailed') return mobileText('status.sync.failed')
   if (sync.kind === 'pullRequired') return mobileText('status.sync.pullAndPush')
@@ -68,6 +71,8 @@ function syncStatusDetail(sync: MobileSyncStatus) {
 }
 
 function syncStatusLabel(sync: MobileSyncStatus) {
+  if (sync.kind === 'noVault') return mobileText('status.vault.default')
+  if (sync.kind === 'readOnly') return mobileText('status.vault.default')
   if (sync.kind === 'conflict') return mobileText('status.sync.conflict')
   if (sync.kind === 'writeFailed') return mobileText('status.sync.notSynced')
   if (sync.kind === 'pullRequired') return mobileText('status.sync.pullRequired')

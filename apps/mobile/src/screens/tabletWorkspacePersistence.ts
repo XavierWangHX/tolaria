@@ -90,7 +90,7 @@ function useWorkspaceEditApplier({
 }) {
   return useCallback((edit: MobileWorkspaceEdit, options: WorkspaceEditOptions = {}) => {
     const previousSnapshot = snapshotState.workspaceSnapshotRef.current
-    const result = applyMobileWorkspaceEditWithWrites(previousSnapshot, edit)
+    const result = applyWorkspaceEditToWritableSnapshot(previousSnapshot, edit)
     snapshotState.replaceWorkspaceSnapshot(result.snapshot)
     recordWorkspaceEditHistory({ edit, options, previousSnapshot, resultSnapshot: result.snapshot, setWorkspaceHistory })
     if (result.writes.length > 0) void persistWorkspaceWrites({
@@ -102,6 +102,14 @@ function useWorkspaceEditApplier({
     })
     return result
   }, [repository, repositoryRequest, setWorkspaceHistory, snapshotState])
+}
+
+export function applyWorkspaceEditToWritableSnapshot(
+  snapshot: MobileWorkspaceSnapshot,
+  edit: MobileWorkspaceEdit,
+) {
+  if (snapshot.sync.kind === 'noVault' || snapshot.sync.kind === 'readOnly') return { snapshot, writes: [] }
+  return applyMobileWorkspaceEditWithWrites(snapshot, edit)
 }
 
 function useWorkspaceHistoryControls({

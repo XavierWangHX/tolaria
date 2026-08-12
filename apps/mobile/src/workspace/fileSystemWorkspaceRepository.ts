@@ -5,7 +5,6 @@ import type { ReadOnlyWorkspaceRepository, ReadOnlyWorkspaceRequest } from './re
 
 export type WorkspaceFileSystem = {
   createDirectory: (rootUri: string, relativePath: string) => void
-  defaultRootUri: () => string | null
   deleteDirectory: (rootUri: string, relativePath: string) => void
   deleteTextFile: (rootUri: string, relativePath: string) => void
   moveDirectory: (rootUri: string, fromRelativePath: string, toRelativePath: string) => void
@@ -21,7 +20,7 @@ export type WorkspaceFileSystem = {
 export function createFileSystemWorkspaceRepository(fileSystem: WorkspaceFileSystem): ReadOnlyWorkspaceRepository {
   return {
     persistWrites: async (writes, request) => {
-      const rootUri = workspaceRootUri(fileSystem, request)
+      const rootUri = workspaceRootUri(request)
       if (!rootUri) return
 
       for (const write of writes) {
@@ -31,14 +30,14 @@ export function createFileSystemWorkspaceRepository(fileSystem: WorkspaceFileSys
     readNoteContent: async (note, request) => {
       if (note.rawContent !== undefined) return note.rawContent
 
-      const rootUri = workspaceRootUri(fileSystem, request)
+      const rootUri = workspaceRootUri(request)
       const relativePath = noteRelativePath(note)
       if (!rootUri || !relativePath) return null
 
       return fileSystem.readTextFile(rootUri, relativePath)
     },
     readSnapshot: (request) => {
-      const rootUri = workspaceRootUri(fileSystem, request)
+      const rootUri = workspaceRootUri(request)
       if (!rootUri) return emptyFileSystemSnapshot(request)
 
       return buildLocalVaultWorkspaceSnapshot({
@@ -111,11 +110,8 @@ function isDeleteTextWrite(
   return write.kind === 'deleteNote' || write.kind === 'deleteView'
 }
 
-function workspaceRootUri(
-  fileSystem: WorkspaceFileSystem,
-  request?: ReadOnlyWorkspaceRequest,
-): string | null {
-  return request?.vaultRootUri ?? fileSystem.defaultRootUri()
+function workspaceRootUri(request?: ReadOnlyWorkspaceRequest): string | null {
+  return request?.vaultRootUri ?? null
 }
 
 function workspaceLabel(rootUri: string, request?: ReadOnlyWorkspaceRequest) {
@@ -134,12 +130,17 @@ function decodedDirectoryName(directoryName: string | undefined) {
 }
 
 function emptyFileSystemSnapshot(request?: ReadOnlyWorkspaceRequest): MobileWorkspaceSnapshot {
-  return buildLocalVaultWorkspaceSnapshot({
+  const snapshot = buildLocalVaultWorkspaceSnapshot({
     files: [],
     vaultAlias: request?.vaultAlias,
     vaultLabel: request?.vaultLabel ?? 'Tolaria Vault',
     vaultPath: request?.vaultRootUri ?? '',
   })
+
+  return {
+    ...snapshot,
+    sync: { kind: 'noVault' },
+  }
 }
 
 function noteRelativePath(note: MobileNote): string | null {

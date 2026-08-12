@@ -29,9 +29,11 @@ export async function fetchDevVaultWorkspaceState(
 
 export function createDevVaultWorkspaceRepository(state: DevVaultWorkspaceState): ReadOnlyWorkspaceRepository {
   return {
-    persistWrites: async () => {},
+    persistWrites: async () => {
+      throw new Error('Development vault bridge is read-only')
+    },
     readNoteContent: async (note) => readDevVaultNoteContent(state, note),
-    readSnapshot: () => state.snapshot,
+    readSnapshot: () => ({ ...state.snapshot, sync: { kind: 'readOnly' } }),
   }
 }
 

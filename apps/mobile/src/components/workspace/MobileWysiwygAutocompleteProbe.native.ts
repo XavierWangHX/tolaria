@@ -13,6 +13,7 @@ type AutocompleteProbeRefs = {
   editorRef: MutableRefObject<EditorBridge | null>
 }
 type ProbeEditorBridge = EditorBridge & {
+  getEditorState: () => { isReady?: boolean }
   setContent: (content: unknown) => void
   setSelection: (from: number, to: number) => void
 }
@@ -38,13 +39,13 @@ export function useNativeWysiwygAutocompleteProbe({
       timers.add(timer)
     }
     const runProbe = (stepIndex = 0) => {
-      if (!refs.acceptsEditorChangesRef.current) {
+      refs.acceptsEditorChangesRef.current = true
+
+      const editor = refs.editorRef.current
+      if (!isReadyProbeEditorBridge(editor)) {
         schedule(() => runProbe(stepIndex), 250)
         return
       }
-
-      const editor = refs.editorRef.current
-      if (!isProbeEditorBridge(editor)) return
       const step = nativeWysiwygAutocompleteProbeSteps()[stepIndex]
       if (!step) return
 
@@ -67,7 +68,10 @@ export function useNativeWysiwygAutocompleteProbe({
   }, [detectAutocomplete, enabled, refs])
 }
 
-function isProbeEditorBridge(editor: EditorBridge | null): editor is ProbeEditorBridge {
+function isReadyProbeEditorBridge(editor: EditorBridge | null): editor is ProbeEditorBridge {
   const candidate = editor as Partial<ProbeEditorBridge> | null
-  return typeof candidate?.setContent === 'function' && typeof candidate.setSelection === 'function'
+  return typeof candidate?.getEditorState === 'function'
+    && candidate.getEditorState().isReady === true
+    && typeof candidate.setContent === 'function'
+    && typeof candidate.setSelection === 'function'
 }

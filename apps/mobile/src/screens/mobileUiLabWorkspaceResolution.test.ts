@@ -31,6 +31,23 @@ describe('resolveMobileUiWorkspace', () => {
     expect(result.baseSnapshot).toBe(probeSnapshot)
     expect(readSnapshot).toHaveBeenCalledWith({ source: 'native' })
   })
+
+  it('marks the development vault bridge snapshot as read-only', () => {
+    const snapshot = workspaceScenarioForId('default')
+    const result = resolveMobileUiWorkspace({
+      devVaultState: { noteContents: {}, snapshot },
+      persistenceProbeEnabled: false,
+      probeRepository: {
+        persistWrites: vi.fn(),
+        readNoteContent: vi.fn(),
+        readSnapshot: vi.fn(),
+      },
+      repositoryRequest: { source: 'dev' },
+      source: 'dev',
+    })
+
+    expect(result.baseSnapshot.sync).toEqual({ kind: 'readOnly' })
+  })
 })
 
 describe('mobileUiRequestedWorkspaceSource', () => {
@@ -77,5 +94,14 @@ describe('mobileUiRequestedWorkspaceSource', () => {
       requestedSource: 'dev-vault',
       searchParams: new URLSearchParams('layoutProbe=1'),
     })).toBe('dev')
+  })
+
+  it('uses deterministic fixture data for an unconfigured layout probe', () => {
+    expect(mobileUiRequestedWorkspaceSource({
+      hasNativeWorkspace: false,
+      platform: 'ios',
+      requestedSource: null,
+      searchParams: new URLSearchParams('layoutProbe=1'),
+    })).toBe('fixture')
   })
 })
