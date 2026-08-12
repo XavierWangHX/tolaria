@@ -29,7 +29,8 @@ type CssInjectableEditorBridge = EditorBridge & {
   injectCSS: (css: string, tag?: string) => void
 }
 
-const nativeInitialContentRetryDelaysMs = [80, 240, 520] as const
+const nativeInitialContentRetryDelaysMs = [80, 240, 520, 1_100] as const
+const nativeInitialContentReadyDelayMs = 1_250
 
 export function useEditorCssInjection({
   compact,
@@ -48,7 +49,7 @@ export function useEditorCssInjection({
     if (isCssInjectableEditorBridge(editorRef.current)) {
       editorRef.current.injectCSS(mobileTentapEditorCss(compact, noteWidth), 'tolaria-editor')
     }
-    syncNativeInitialEditorContent({ initialContent, readyDelayMs: 750, refs })
+    syncNativeInitialEditorContent({ initialContent, readyDelayMs: nativeInitialContentReadyDelayMs, refs })
   }, [compact, editorRef, initialContent, noteWidth, refs])
 }
 
@@ -135,17 +136,26 @@ function syncNativeInitialEditorContent({
   clearNativeInitialEditorContentTimers(refs)
   refs.acceptsEditorChangesRef.current = false
   setNativeInitialEditorContent(initialContent, refs)
-  scheduleInitialContentRetries(initialContent, refs)
+  refs.initialContentRetryTimerRefs.current.push(...scheduleInitialContentRetries({
+    initialContent,
+    setContent: (content) => setNativeInitialEditorContent(content, refs),
+    shouldRetry: () => !refs.hasAcceptedEditorChangeRef.current,
+  }))
   refs.editorReadyTimerRef.current = setTimeout(() => finishInitialContentSync(refs), readyDelayMs)
 }
 
-function scheduleInitialContentRetries(initialContent: string, refs: NativeTentapEditorRefs) {
-  for (const delayMs of nativeInitialContentRetryDelaysMs) {
-    const timer = setTimeout(() => {
-      if (!refs.hasAcceptedEditorChangeRef.current) setNativeInitialEditorContent(initialContent, refs)
-    }, delayMs)
-    refs.initialContentRetryTimerRefs.current.push(timer)
-  }
+export function scheduleInitialContentRetries({
+  initialContent,
+  setContent,
+  shouldRetry,
+}: {
+  initialContent: string
+  setContent: (content: string) => void
+  shouldRetry: () => boolean
+}): TimerHandle[] {
+  return nativeInitialContentRetryDelaysMs.map((delayMs) => setTimeout(() => {
+    if (shouldRetry()) setContent(initialContent)
+  }, delayMs))
 }
 
 function finishInitialContentSync(refs: NativeTentapEditorRefs) {
@@ -200,7 +210,7 @@ function syncInitialEditorContent({
 
   clearTimer(refs.saveTimerRef.current)
   refs.firstEditorSerializationRef.current = true
-  syncNativeInitialEditorContent({ initialContent, readyDelayMs: 750, refs })
+  syncNativeInitialEditorContent({ initialContent, readyDelayMs: nativeInitialContentReadyDelayMs, refs })
   syncedContentRef.current = { content: initialContent, noteId }
 }
 

@@ -29,7 +29,7 @@ function readOption(args, name, fallback) {
 }
 
 function run(command, args) {
-  const result = spawnSync(command, args, { encoding: 'utf8' })
+  const result = spawnSync(command, args, { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
   if (result.status === 0) return result.stdout
   const detail = result.stderr.trim() || result.stdout.trim() || `exit ${result.status}`
   throw new Error(`${command} ${args.join(' ')} failed: ${detail}`)
