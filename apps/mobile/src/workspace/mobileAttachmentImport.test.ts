@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   importMobileAttachment,
+  importNativeMobileAttachment,
   MOBILE_ATTACHMENT_IMPORTS_GLOBAL_KEY,
   readMobileAttachmentImportFromGlobal,
 } from './mobileAttachmentImport'
@@ -51,17 +52,56 @@ describe('mobile attachment import web fallback', () => {
 })
 
 describe('mobile native attachment import', () => {
+  it('uses the native picker when no deterministic QA import is queued', async () => {
+    const fileSystem = fakeAttachmentFileSystem()
+    const pickDocument = async () => ({
+      assets: [{ name: 'Native.pdf', uri: 'file:///cache/native.pdf' }],
+      canceled: false,
+    })
+
+    await expect(
+      importNativeMobileAttachment({
+        fileSystem,
+        pickDocument,
+        readInjectedImport: () => null,
+        vaultRootUri: 'file:///vault',
+      }),
+    ).resolves.toMatchObject({
+      name: 'Native.pdf',
+      path: expect.stringMatching(/^attachments\//u),
+    })
+    expect(fileSystem.copies).toHaveLength(1)
+  })
+
+  it('keeps deterministic QA imports ahead of the native picker', async () => {
+    const fileSystem = fakeAttachmentFileSystem()
+
+    await expect(
+      importNativeMobileAttachment({
+        fileSystem,
+        pickDocument: async () => {
+          throw new Error('picker should not open')
+        },
+        readInjectedImport: () => ({ name: 'Fixture.pdf', path: 'attachments/fixture.pdf' }),
+        vaultRootUri: 'file:///vault',
+      }),
+    ).resolves.toEqual({ name: 'Fixture.pdf', path: 'attachments/fixture.pdf' })
+    expect(fileSystem.copies).toEqual([])
+  })
+
   it('copies picked files into the selected vault attachments folder', async () => {
     const fileSystem = fakeAttachmentFileSystem(['42-Project_Brief.pdf'])
     const result = await importMobileAttachment({
       fileSystem,
       nowMs: () => 42,
       pickDocument: async () => ({
-        assets: [{
-          mimeType: 'application/pdf',
-          name: 'Project Brief.pdf',
-          uri: 'file:///cache/picked.pdf',
-        }],
+        assets: [
+          {
+            mimeType: 'application/pdf',
+            name: 'Project Brief.pdf',
+            uri: 'file:///cache/picked.pdf',
+          },
+        ],
         canceled: false,
       }),
       vaultRootUri: 'file:///vault',
@@ -75,28 +115,34 @@ describe('mobile native attachment import', () => {
     expect(fileSystem.createdDirectories).toEqual([
       { options: { intermediates: true }, uri: 'file:///vault/attachments/' },
     ])
-    expect(fileSystem.copies).toEqual([{
-      from: 'file:///cache/picked.pdf',
-      to: 'file:///vault/attachments/42-2-Project_Brief.pdf',
-    }])
+    expect(fileSystem.copies).toEqual([
+      {
+        from: 'file:///cache/picked.pdf',
+        to: 'file:///vault/attachments/42-2-Project_Brief.pdf',
+      },
+    ])
   })
 
   it('treats cancelled or rootless native imports as no attachment', async () => {
     const fileSystem = fakeAttachmentFileSystem()
 
-    await expect(importMobileAttachment({
-      fileSystem,
-      pickDocument: async () => ({ assets: null, canceled: true }),
-      vaultRootUri: 'file:///vault',
-    })).resolves.toBeNull()
-    await expect(importMobileAttachment({
-      fileSystem,
-      pickDocument: async () => ({
-        assets: [{ name: 'Project.pdf', uri: 'file:///cache/project.pdf' }],
-        canceled: false,
+    await expect(
+      importMobileAttachment({
+        fileSystem,
+        pickDocument: async () => ({ assets: null, canceled: true }),
+        vaultRootUri: 'file:///vault',
       }),
-      vaultRootUri: '',
-    })).resolves.toBeNull()
+    ).resolves.toBeNull()
+    await expect(
+      importMobileAttachment({
+        fileSystem,
+        pickDocument: async () => ({
+          assets: [{ name: 'Project.pdf', uri: 'file:///cache/project.pdf' }],
+          canceled: false,
+        }),
+        vaultRootUri: '',
+      }),
+    ).resolves.toBeNull()
     expect(fileSystem.copies).toEqual([])
   })
 
@@ -106,14 +152,16 @@ describe('mobile native attachment import', () => {
       throw new Error('copy failed')
     }
 
-    await expect(importMobileAttachment({
-      fileSystem,
-      pickDocument: async () => ({
-        assets: [{ name: 'Project.pdf', uri: 'file:///cache/project.pdf' }],
-        canceled: false,
+    await expect(
+      importMobileAttachment({
+        fileSystem,
+        pickDocument: async () => ({
+          assets: [{ name: 'Project.pdf', uri: 'file:///cache/project.pdf' }],
+          canceled: false,
+        }),
+        vaultRootUri: 'file:///vault',
       }),
-      vaultRootUri: 'file:///vault',
-    })).resolves.toBeNull()
+    ).resolves.toBeNull()
   })
 })
 
