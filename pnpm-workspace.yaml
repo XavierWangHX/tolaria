@@ -6,6 +6,8 @@ ignoredBuiltDependencies:
   - esbuild
 
 patchedDependencies:
+  '@10play/tentap-editor@1.0.1': patches/@10play__tentap-editor@1.0.1.patch
+  '@blocknote/code-block@0.46.2': patches/@blocknote__code-block@0.46.2.patch
   '@blocknote/core@0.46.2': patches/@blocknote__core@0.46.2.patch
   '@blocknote/react@0.46.2': patches/@blocknote__react@0.46.2.patch
   '@tiptap/extension-link@3.19.0': patches/@tiptap__extension-link@3.19.0.patch
