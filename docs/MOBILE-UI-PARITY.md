@@ -93,6 +93,14 @@ The same Playwright suite also compares the primary tablet-landscape screen agai
 
 Use it after launching Expo on iOS with `pnpm mobile:ios`. The command refreshes Expo Go before capture, so the artifact matches the native app surface rather than Mobile Safari, the Expo web build, or a stale foreground Simulator app. The native QA scripts reject `http://` and `https://` open URLs because those launch Mobile Safari; automated native acceptance must use `exp://`, `exps://`, or `tolaria://` deep links.
 
+For native interaction QA, click React Native controls by their exact `testID` before capturing the next screen:
+
+```bash
+pnpm mobile:qa:ios-click -- --test-id note-list-create-action
+```
+
+The command reads the native accessibility frame, maps it into the visible Simulator display surface, and clicks the real Simulator window. Use this path for landscape iPad QA instead of accepting a successful AXe/xcodebuildmcp tap result on its own: the lower-level driver can report success while tapping untransformed portrait coordinates when the app is rendered in landscape. Refresh the native accessibility snapshot after navigation or layout changes.
+
 If Expo Go is not already focused, open the running native bundle first:
 
 ```bash
