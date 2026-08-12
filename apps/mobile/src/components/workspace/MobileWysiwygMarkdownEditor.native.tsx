@@ -27,6 +27,7 @@ import { MobileMarkdownFormattingToolbar } from './MobileMarkdownFormattingToolb
 import { useNativeWysiwygAutocompleteProbe } from './MobileWysiwygAutocompleteProbe.native'
 import { MobileCodeBlockBridge } from './MobileWysiwygCodeBlockBridge'
 import {
+  activateNativeEditorChanges,
   isContentSettableEditorBridge,
   type NativeTentapEditorRefs,
   useEditableContentRef,
@@ -126,6 +127,7 @@ type NativeTentapEditorBridgeOptions = Omit<MobileWysiwygMarkdownEditorProps, 'n
   onInlineAutocomplete: NativeWysiwygInlineAutocompleteHandler
 }
 type NativeTentapEditorSurfaceProps = {
+  activateEditorChanges: () => void
   editor: EditorBridge
   externalLinkState: NativeWysiwygExternalLinkSheetState | null
   flushEditorDocument: () => void
@@ -189,30 +191,31 @@ const mobileTenTapBridgeExtensions = [
   MobileTableBridge,
 ]
 
-export function MobileWysiwygMarkdownEditor({
-  blocks,
-  bullets,
-  compact,
-  layoutProbe,
-  note,
-  notes,
-  onImportAttachment,
-  onRegisterEditorCommands,
-  onTableOfContentsScrollProof,
-  onUpdateContent,
-  tableOfContentsTarget,
-  typeDefinitions,
-  vaultRootUri = null,
-  wysiwygAutocompleteProbe = false,
-  wysiwygExternalLinkProbe = false,
-  wysiwygFormatCommandProbe = false,
-  wysiwygInputTransformProbe = false,
-  wysiwygMarkdownBlockProbe = false,
-  wysiwygMathEditProbe = false,
-  wysiwygTableCommandMutationProbe = false,
-  wysiwygWikilinkInsertProbe = false,
-  wysiwygMutationProbe = false,
-}: MobileWysiwygMarkdownEditorProps) {
+export function MobileWysiwygMarkdownEditor(props: MobileWysiwygMarkdownEditorProps) {
+  const {
+    blocks,
+    bullets,
+    compact,
+    layoutProbe,
+    note,
+    notes,
+    onImportAttachment,
+    onRegisterEditorCommands,
+    onTableOfContentsScrollProof,
+    onUpdateContent,
+    tableOfContentsTarget,
+    typeDefinitions,
+    vaultRootUri = null,
+    wysiwygAutocompleteProbe = false,
+    wysiwygExternalLinkProbe = false,
+    wysiwygFormatCommandProbe = false,
+    wysiwygInputTransformProbe = false,
+    wysiwygMarkdownBlockProbe = false,
+    wysiwygMathEditProbe = false,
+    wysiwygTableCommandMutationProbe = false,
+    wysiwygWikilinkInsertProbe = false,
+    wysiwygMutationProbe = false,
+  } = props
   const [pickerState, setPickerState] = useState<NativeWysiwygPickerState | null>(null)
   const [externalLinkState, setExternalLinkState] = useState<NativeWysiwygExternalLinkSheetState | null>(null)
   const handleInlineAutocomplete = useCallback((match: NativeWysiwygInlineAutocomplete | null) => {
@@ -284,6 +287,7 @@ export function MobileWysiwygMarkdownEditor({
 
 function NativeTentapEditorSurface(props: NativeTentapEditorSurfaceProps) {
   const {
+    activateEditorChanges,
     editor,
     externalLinkState,
     flushEditorDocument,
@@ -329,6 +333,7 @@ function NativeTentapEditorSurface(props: NativeTentapEditorSurfaceProps) {
       {...probeProps(layoutProbe, 'editor.wysiwyg.form')}
       style={nativeEditorStyles.container}
       testID="editor-wysiwyg-form"
+      onTouchStart={activateEditorChanges}
     >
       <RichText
         editor={editor}
@@ -705,6 +710,7 @@ function useNativeTentapEditorBridge({
   useFlushOnUnmount(refs, flushEditorDocument)
 
   return {
+    activateEditorChanges: () => activateNativeEditorChanges(refs),
     editor,
     flushEditorDocument,
     injectEditorCss,

@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type NativeSyntheticEvent, type TextInputKeyPressEventData } from 'react-native'
+import type { ReactNode } from 'react'
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native'
 import { ArrowSquareOut, CheckCircle, ClipboardText, FilePlus, FolderOpen, Trash } from 'phosphor-react-native'
 import { Text } from '../ui/text'
 import { mobileText } from '../../i18n/mobileText'
 import { MobileButton } from '../../ui/MobileButton'
 import { MobileChip } from '../../ui/MobileChip'
-import { MobileListRow } from '../../ui/MobileListRow'
 import { MobilePanel, MobileToolbar, MobileToolbarSpacer, MobileToolbarTitle } from '../../ui/MobilePanel'
 import { MobileTextInput } from '../../ui/MobileTextInput'
 import { desktopToolbarActionParity } from '../../ui/desktopParity'
@@ -15,11 +14,6 @@ import type {
   MobileTypeSchemaProperty,
   MobileTypeSchemaRelationship,
 } from '../../workspace/mobileTypeDefinitionSchema'
-import {
-  mobileQuickOpenMoveIndex,
-  mobileQuickOpenResults,
-  mobileQuickOpenSelectedNote,
-} from '../../workspace/mobileQuickOpen'
 import {
   canSubmitMobilePropertyValue,
   isMobileListPropertyKey,
@@ -56,7 +50,8 @@ import { MoreActionsContent } from './MobileWorkspaceMoreActionsContent'
 import { MobileFavoriteActions, MobileSavedViewActions, MobileTypeSectionActions } from './MobileWorkspaceMoveActions'
 import { MobileWorkspaceSuggestionList } from './MobileWorkspaceSuggestionList'
 import type { MobileWorkspaceSuggestionItem } from './MobileWorkspaceSuggestionListModel'
-import { chipTone, noteTypeSoftColor, statusTone, tagTone } from './mobileWorkspaceTone'
+import { MobileQuickOpenSheet } from './MobileQuickOpenSheet'
+import { chipTone } from './mobileWorkspaceTone'
 import {
   mobileActionSheetLongFormHeight,
   mobileActionSheetLayoutContract,
@@ -356,111 +351,17 @@ const actionContentByAction: Record<MobileWorkspaceAction, (props: MobileWorkspa
   ),
 }
 
-function SearchContent({
-  notes,
-  onCreateNote,
-  onClose,
-  onSearchQueryChange,
-  onSelectNote,
-  searchQuery,
-  typeDefinitions,
-}: MobileWorkspaceActionSheetProps) {
-  const searchResults = useMemo(() => mobileQuickOpenResults(notes, searchQuery), [notes, searchQuery])
-  const [selectedResultIndex, setSelectedResultIndex] = useState(0)
-  const createTitle = searchQuery.trim()
-  const canCreateFromQuery = createTitle.length > 0 && searchResults.length === 0
-
-  useEffect(() => {
-    setSelectedResultIndex(0) // eslint-disable-line react-hooks/set-state-in-effect -- reset when quick-open results change
-  }, [searchQuery, searchResults.length])
-
-  const selectResult = (note: MobileNote) => {
-    onSelectNote(note.id)
-    onSearchQueryChange('')
-    onClose()
-  }
-
-  const createFromQuery = () => {
-    if (!canCreateFromQuery) return
-    onCreateNote(createTitle)
-    onSearchQueryChange('')
-  }
-
-  const selectActiveResult = () => {
-    const selectedNote = mobileQuickOpenSelectedNote(searchResults, selectedResultIndex)
-    if (selectedNote) {
-      selectResult(selectedNote)
-      return
-    }
-    createFromQuery()
-  }
-
-  const handleKeyPress = (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
-    if (event.nativeEvent.key === 'ArrowDown') {
-      setSelectedResultIndex((index) => mobileQuickOpenMoveIndex(index, searchResults.length, 'next'))
-    } else if (event.nativeEvent.key === 'ArrowUp') {
-      setSelectedResultIndex((index) => mobileQuickOpenMoveIndex(index, searchResults.length, 'previous'))
-    } else if (event.nativeEvent.key === 'Enter') {
-      selectActiveResult()
-    } else if (event.nativeEvent.key === 'Escape') {
-      onSearchQueryChange('')
-      onClose()
-    }
-  }
-
+function SearchContent(props: MobileWorkspaceActionSheetProps) {
   return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" style={styles.scrollArea}>
-      <MobileTextInput
-        autoFocus
-        label={mobileText('noteList.searchAction')}
-        placeholder={mobileText('noteList.searchPlaceholder')}
-        testID="workspace-search-input"
-        value={searchQuery}
-        onChangeText={onSearchQueryChange}
-        onKeyPress={handleKeyPress}
-        onSubmitEditing={selectActiveResult}
-      />
-      <ScrollView contentContainerStyle={styles.resultList} keyboardShouldPersistTaps="handled" testID="workspace-search-results">
-        {searchResults.length === 0 ? (
-          <>
-            <EmptyState>{mobileText('noteList.empty.noMatching')}</EmptyState>
-            {canCreateFromQuery ? (
-              <ActionRow
-                icon={<FilePlus color={mobileColors.textMuted} size={desktopToolbarActionParity.iconSize} />}
-                label={quickOpenCreateLabel(createTitle)}
-                testID="workspace-search-create-note"
-                onPress={createFromQuery}
-              />
-            ) : null}
-          </>
-        ) : null}
-        {searchResults.map((note, index) => (
-          <MobileListRow
-            key={note.id}
-            chips={<NoteRowChips note={note} />}
-            selected={index === selectedResultIndex}
-            selectedBackgroundColor={noteTypeSoftColor(note.typeTone)}
-            subtitle={note.snippet}
-            testID={`workspace-search-result-${note.id}`}
-            title={note.title}
-            trailing={(
-              <MobileTypeIcon
-                size={16}
-                tone={note.typeTone}
-                type={note.type}
-                typeDefinitions={typeDefinitions}
-              />
-            )}
-            onPress={() => selectResult(note)}
-          />
-        ))}
-      </ScrollView>
-    </ScrollView>
+    <MobileQuickOpenSheet
+      notes={props.notes}
+      typeDefinitions={props.typeDefinitions}
+      onClearWorkspaceSearch={() => props.onSearchQueryChange('')}
+      onClose={props.onClose}
+      onCreateNote={props.onCreateNote}
+      onSelectNote={props.onSelectNote}
+    />
   )
-}
-
-function quickOpenCreateLabel(title: string): string {
-  return mobileText('noteList.quickOpenCreate').replace('{title}', title)
 }
 
 function SingleTextFieldContent({ config }: { config: SingleTextFieldConfig }) {
@@ -1157,26 +1058,8 @@ function ActionRow({
   )
 }
 
-function EmptyState({ children }: { children: ReactNode }) {
-  return (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyText}>{children}</Text>
-    </View>
-  )
-}
-
 function SheetFooter({ children }: { children: ReactNode }) {
   return <View style={styles.footer}>{children}</View>
-}
-
-function NoteRowChips({ note }: { note: MobileNote }) {
-  return (
-    <View style={styles.chipRow}>
-      <MobileChip density="list" label={note.type} tone={chipTone(note.typeTone)} />
-      {note.status ? <MobileChip density="list" label={note.status} tone={statusTone(note.status)} /> : null}
-      {note.tags.slice(0, 1).map((tag) => <MobileChip density="list" key={tag} label={tag} tone={tagTone(tag)} />)}
-    </View>
-  )
 }
 
 function actionTitle(action: MobileWorkspaceAction, propertyName: string) {
@@ -1213,25 +1096,10 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(55, 53, 47, 0.14)',
   },
-  chipRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: mobileSpace.xs,
-  },
   content: {
     alignSelf: 'stretch',
     gap: mobileActionSheetLayoutContract.contentGap,
     padding: mobileActionSheetLayoutContract.contentPadding,
-  },
-  emptyState: {
-    minHeight: 96,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    color: mobileColors.textMuted,
-    fontSize: mobileType.body,
   },
   footer: {
     alignItems: 'center',
@@ -1250,10 +1118,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: mobileActionSheetLayoutContract.overlayPaddingHorizontal,
     paddingVertical: mobileActionSheetLayoutContract.overlayPaddingVertical,
     zIndex: 1000,
-  },
-  resultList: {
-    borderColor: mobileColors.border,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
   scrollArea: {
     flexShrink: 1,

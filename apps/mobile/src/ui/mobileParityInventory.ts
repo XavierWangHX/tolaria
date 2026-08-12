@@ -134,6 +134,13 @@ export const mobileParityInventory = [
     surface: 'Writable workspace action sheets',
   },
   {
+    assertions: ['native Cmd+O all-notes search, literal technical-term query, selected-note opening, and note-list filter isolation checks'],
+    contracts: ['desktopNoteItemParity', 'desktopPanelParity', 'desktopToolbarActionParity'],
+    desktopSource: 'QuickOpenDialog, quick-open search ranking, and NoteItem result rows',
+    mobileFile: 'src/components/workspace/MobileQuickOpenSheet.tsx',
+    surface: 'All-notes quick open',
+  },
+  {
     assertions: ['command-palette model tests for desktop command IDs, grouping, filtering, enabled-state, and callback dispatch'],
     contracts: ['desktopPanelParity', 'desktopToolbarActionParity'],
     desktopSource: 'CommandPalette.tsx, appCommandManifest.json, and desktop command registry builders',

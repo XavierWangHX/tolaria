@@ -30,7 +30,6 @@ import type {
   MobileRelationship,
   MobileRelationshipValue,
   MobileSavedView,
-  MobileTone,
   MobileTypeDefinition,
   MobileTypeDefinitions,
   MobileViewDefinition,
@@ -53,6 +52,7 @@ import { mobileCreateRelationshipTargetDefaults } from './mobileCreateNoteDefaul
 import { isMobileInboxNote } from './mobileNoteFilters'
 import { normalizedMobileFolderPath } from './mobileWorkspaceFolders'
 import { applyMobileFolderEdit } from './mobileWorkspaceFolderEditing'
+import { preserveHydratedNoteTimestamps } from './mobileWorkspaceHydration'
 import {
   mobileFilenameStemForTitle,
   uniqueMobileNotePath,
@@ -61,6 +61,7 @@ import {
 } from './mobileNotePaths'
 import {
   movedNoteWikilinkRewrite,
+  noteFilename,
   noteWritePath,
 } from './mobileWorkspacePathRewrites'
 import {
@@ -97,6 +98,7 @@ import type { MobileTypeDefinitionPatch } from './mobileTypeDefinitions'
 import { applyMobileTypeEdit } from './mobileWorkspaceTypeEditing'
 import { applyMobileRestorationEdit } from './mobileWorkspaceRestoration'
 import { moveMobileFavorite } from './mobileWorkspaceFavoriteOrdering'
+import { mobileWorkspaceTypeTone } from './mobileWorkspaceTypeTone'
 import {
   selectedMobileEditorBlocks,
   selectedMobileEditorBullets,
@@ -236,9 +238,14 @@ const mobileNoteEditHandlers: Record<MobileNoteEdit['type'], MobileNoteEditHandl
     if (edit.type !== 'deleteProperty') return editableNote
     return deriveEditedNote(editableNote, writeFrontmatterValue(editableNote.rawContent, edit.key, null), typeDefinitions)
   },
-  hydrateNoteContent: ({ editableNote, typeDefinitions }, edit) => {
+  hydrateNoteContent: ({ editableNote, note, typeDefinitions }, edit) => {
     if (edit.type !== 'hydrateNoteContent') return editableNote
-    return deriveEditedNote(editableNote, edit.rawContent, typeDefinitions)
+    const hydratedNote = deriveEditedNote(editableNote, edit.rawContent, typeDefinitions)
+    return {
+      ...hydratedNote,
+      modified: note.modified,
+      modifiedAt: note.modifiedAt,
+    }
   },
   hydrateTextFileContent: ({ note }, edit) => {
     if (edit.type !== 'hydrateTextFileContent') return note
@@ -362,7 +369,9 @@ function applyMobileNoteEditResult(
   const notePool = workspaceNotePool(snapshot)
   const notes = snapshot.notes.map((note) => applyMobileNoteEdit(note, notePool, edit, snapshot.typeDefinitions))
   const allNotes = snapshot.allNotes?.map((note) => applyMobileNoteEdit(note, notePool, edit, snapshot.typeDefinitions))
-  const nextSnapshot = rebuildSnapshot({ ...snapshot, allNotes, notes }, notes, allNotes)
+  const rebuiltSnapshot = rebuildSnapshot({ ...snapshot, allNotes, notes }, notes, allNotes)
+  const previousNote = edit.type === 'hydrateNoteContent' ? workspaceNoteById(snapshot, edit.noteId) : null
+  const nextSnapshot = preserveHydratedNoteTimestamps(rebuiltSnapshot, previousNote)
 
   return {
     snapshot: nextSnapshot,
@@ -1149,7 +1158,7 @@ function deriveEditableNote({
   typeDefinitions?: MobileTypeDefinitions
 }): DerivedNote {
   const document = parseLocalVaultDocument(rawContent)
-  const filename = fallback.path?.split('/').at(-1) ?? fallback.id
+  const filename = noteFilename(noteWritePath(fallback))
   const type = cleanTypeName(frontmatterScalar(document.frontmatter, ['type', 'Is A', 'is_a']) ?? fallback.type)
   const blocks = localVaultEditorBlocks(document.body)
   const properties = mobileProperties(frontmatterProperties(document.frontmatter))
@@ -1181,18 +1190,10 @@ function deriveEditableNote({
         filename,
       }),
       type,
-      typeTone: mobileTypeTone(type, typeDefinitions, fallback.typeTone),
+      typeTone: mobileWorkspaceTypeTone(type, typeDefinitions, fallback.typeTone),
     },
     rawRelationships: frontmatterRelationships(document.frontmatter),
   }
-}
-
-function mobileTypeTone(
-  type: NoteTitle,
-  typeDefinitions: MobileTypeDefinitions | undefined,
-  fallback: MobileTone,
-): MobileTone {
-  return typeDefinitions?.[type]?.tone ?? typeToneFallbacks[type] ?? fallback
 }
 
 function withEditableContent(note: MobileNote): EditableNoteInput {
@@ -1374,17 +1375,6 @@ function scalarPropertyArrayItem(value: LocalVaultFrontmatterScalar): string[] {
 
 function cleanTypeName(value: string): string {
   return wikilinkTarget(value).replace(/\.md$/, '')
-}
-
-const typeToneFallbacks: Record<string, MobileTone> = {
-  Event: 'yellow',
-  Experiment: 'red',
-  Person: 'yellow',
-  Procedure: 'purple',
-  Project: 'red',
-  Responsibility: 'purple',
-  Topic: 'green',
-  Type: 'blue',
 }
 
 function wikilinkSearchText(note: MobileNote): string {

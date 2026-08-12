@@ -163,17 +163,26 @@ export function scheduleInitialContentRetries({
 }
 
 function finishInitialContentSync(refs: NativeTentapEditorRefs) {
+  const editor = refs.editorRef.current
+  if (!isSilentContentSettableEditorBridge(editor)) {
+    refs.editorReadyTimerRef.current = setTimeout(() => finishInitialContentSync(refs), 250)
+    return
+  }
   clearNativeInitialContentRetryTimers(refs)
-  refs.acceptsEditorChangesRef.current = true
 }
 
 function setNativeInitialEditorContent(initialContent: string, refs: NativeTentapEditorRefs) {
-  const editor = refs.editorRef.current
-  if (isSilentContentSettableEditorBridge(editor)) {
-    editor.setContentSilently(initialContent)
-  } else if (isContentSettableEditorBridge(editor)) {
-    editor.setContent(initialContent)
-  }
+  setNativeEditorContentSilently(refs.editorRef.current, initialContent)
+}
+
+export function setNativeEditorContentSilently(editor: EditorBridge | null, content: string): boolean {
+  if (!isSilentContentSettableEditorBridge(editor)) return false
+  editor.setContentSilently(content)
+  return true
+}
+
+export function activateNativeEditorChanges(refs: NativeTentapEditorRefs) {
+  refs.acceptsEditorChangesRef.current = true
 }
 
 function clearNativeInitialEditorContentTimers(refs: NativeTentapEditorRefs) {

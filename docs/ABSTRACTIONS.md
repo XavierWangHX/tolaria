@@ -100,6 +100,8 @@ Workspace surfaces now sit one level above those primitives:
 |---|---|
 | `MobileWorkspaceSnapshot` | Production-shaped data contract for mobile workspace UI |
 | `mobileWorkspaceEditing.ts` | Pure in-process reducer for note creation, full raw markdown/frontmatter edits, title edits, frontmatter scalar properties, favorite/archive flags, relationship add/remove, folder edits, saved View edits, Type definition metadata/schema edits, exact restore edits for undo/redo, and write planning |
+| `mobileWorkspaceHydration.ts` | Lazy body-hydration metadata guard that preserves file-derived timestamps while enriching metadata-only notes |
+| `mobileWorkspaceTypeTone.ts` | Shared Type-definition color lookup with legacy mobile fallbacks for derived note metadata |
 | `mobileWorkspaceFolders.ts` | Shared mobile folder path normalization, portable folder-name validation, subtree matching, and sidebar tree derivation |
 | `mobileWorkspaceTypeEditing.ts` | Type document create/delete/update/reorder write planning for the mobile reducer |
 | `mobileTypeDefinitionSchema.ts` | Mobile form conversion for Type document instance schema/default fields |
@@ -118,6 +120,7 @@ Workspace surfaces now sit one level above those primitives:
 | `MobileWorkspaceSidebar` | Sidebar groups, counts, and folder tree |
 | `MobileNoteListPanel` | Note-list toolbar, rows, chips, and empty state |
 | `MobileCommandPalette` / `mobileCommandPalette.ts` | Desktop-ID-preserving mobile command search over existing workspace callbacks, including selected-note file utilities and retargeting |
+| `MobileQuickOpenSheet` | Ephemeral all-notes quick-open query, keyboard result selection, and direct title-less note creation without mutating the current note-list filter |
 | `MobileWorkspaceActionSheet` | Search, create, property, relationship, and more-action sheets |
 | `TabletEditorPanel` | Editor rendering plus full raw markdown/frontmatter editing with wikilink suggestions |
 | `MobileWysiwygMarkdownEditor` | Native TenTap editor wrapper, custom bridge registration, markdown hydration/serialization, and editor command registration |
