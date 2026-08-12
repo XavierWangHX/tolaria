@@ -60,6 +60,16 @@ export const mobileWorkspaceFormSheetAutoFocus = false
 export const mobileWorkspaceFormSheetMaxSuggestions = 3
 export const mobileWorkspaceRelationshipTargetMaxSuggestions = 2
 
+export function mobilePropertyDeleteActionVisible({
+  editingProperty,
+  hasSelectedNote,
+}: {
+  editingProperty: boolean
+  hasSelectedNote: boolean
+}) {
+  return editingProperty && hasSelectedNote
+}
+
 export function mobileActionSheetLongFormHeight(windowHeight: number) {
   const availableHeight = windowHeight - (mobileActionSheetLayoutContract.overlayPaddingVertical * 2)
   return Math.max(0, Math.min(windowHeight, Math.max(mobileActionSheetLayoutContract.longFormSheetMinHeight, availableHeight)))

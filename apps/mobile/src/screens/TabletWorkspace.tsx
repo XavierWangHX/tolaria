@@ -419,9 +419,6 @@ function TabletNoteListHost(props: TabletPanelHostProps) {
     noteListSubtitle,
     noteListTitle,
     notes,
-    onBulkArchiveNotes,
-    onBulkDeleteNotes,
-    onBulkOrganizeNotes,
     onOpenCreateNote,
     onOpenNativeVault,
     onOpenSearch,
@@ -436,23 +433,11 @@ function TabletNoteListHost(props: TabletPanelHostProps) {
     <View style={styles.panelHost}>
       <MobileNoteListPanel
         compact={compactTablet}
-        bulkActions={{
-          onArchive: onBulkArchiveNotes,
-          onDelete: onBulkDeleteNotes,
-          onOrganize: onBulkOrganizeNotes,
-        }}
+        bulkActions={tabletNoteListBulkActions(props)}
         displayPropertyKeys={noteListProperties}
         emptyVault={snapshot.source?.totalNotes === 0}
         layoutProbe={layoutProbe}
-        leading={(
-          <MobileIconButton
-            accessibilityLabel={mobileText(gestures.showSidebar ? 'sidebar.action.collapse' : 'sidebar.action.expand')}
-            testID="tablet-note-list-sidebar-action"
-            onPress={gestures.toggleSidebar}
-          >
-            <SidebarSimple color={mobileColors.textMuted} size={16} />
-          </MobileIconButton>
-        )}
+        leading={<TabletNoteListSidebarAction gestures={gestures} />}
         neighborhood={noteListNeighborhood}
         notes={notes}
         propertyDisplayModes={snapshot.vaultConfig?.propertyDisplayModes}
@@ -467,6 +452,26 @@ function TabletNoteListHost(props: TabletPanelHostProps) {
         onSelectNote={onSelectNote}
       />
     </View>
+  )
+}
+
+function tabletNoteListBulkActions(props: TabletPanelHostProps) {
+  return {
+    onArchive: props.onBulkArchiveNotes,
+    onDelete: props.onBulkDeleteNotes,
+    onOrganize: props.onBulkOrganizeNotes,
+  }
+}
+
+function TabletNoteListSidebarAction({ gestures }: { gestures: TabletPanelGestures }) {
+  return (
+    <MobileIconButton
+      accessibilityLabel={mobileText(gestures.showSidebar ? 'sidebar.action.collapse' : 'sidebar.action.expand')}
+      testID="tablet-note-list-sidebar-action"
+      onPress={gestures.toggleSidebar}
+    >
+      <SidebarSimple color={mobileColors.textMuted} size={16} />
+    </MobileIconButton>
   )
 }
 
@@ -637,18 +642,14 @@ type ActionSheetHostProps = TabletWorkspaceChromeProps & {
   suggestionNotes: MobileNote[]
 }
 
-export function WorkspaceActionSheetHost(props: ActionSheetHostProps) {
-  const { openAction } = props
-  if (!openAction) return null
-
-  return (
+export const WorkspaceActionSheetHost = (props: ActionSheetHostProps) =>
+  props.openAction ? (
     <MobileWorkspaceActionSheet
-      action={openAction}
+      action={props.openAction}
       {...actionSheetValues(props)}
       {...actionSheetHandlers(props)}
     />
-  )
-}
+  ) : null
 
 function actionSheetValues(props: ActionSheetHostProps) {
   const {
@@ -748,69 +749,45 @@ function actionSheetFormValues(readOnlyForm: ActionSheetHostProps['readOnlyForm'
 
 function actionSheetHandlers(props: ActionSheetHostProps) {
   return {
+    ...actionSheetLifecycleHandlers(props),
+    ...actionSheetNoteHandlers(props),
+    ...actionSheetFileHandlers(props),
+    ...actionSheetPropertyHandlers(props),
+    ...actionSheetWorkspaceHandlers(props),
+    ...actionSheetTypeHandlers(props),
+    ...actionSheetViewHandlers(props),
+  }
+}
+
+function actionSheetLifecycleHandlers(props: ActionSheetHostProps) {
+  return {
+    onClose: props.onCloseAction,
+    onRedoWorkspaceEdit: props.onRedoWorkspaceEdit,
+    onUndoWorkspaceEdit: props.onUndoWorkspaceEdit,
+  }
+}
+
+function actionSheetNoteHandlers(props: ActionSheetHostProps) {
+  return {
     onChangeNoteType: props.onChangeNoteType,
     onChangeNoteTypeInputChange: props.onChangeNoteTypeInputChange,
-    onClose: props.onCloseAction,
-    onCopyFolderPath: props.onCopyFolderPath,
     onCopyDeepLink: props.onCopyDeepLink,
     onCopyFilePath: props.onCopyFilePath,
-    onCreateFolder: props.onCreateFolder,
     onCreateNote: props.onCreateNote,
-    onCreateRelationshipTarget: props.onCreateRelationshipTarget,
     onCreateTitleChange: props.onCreateTitleChange,
-    onCreateType: props.onCreateType,
-    onCreateView: props.onCreateView,
-    onDeleteFolder: props.onDeleteFolder,
     onDeleteNote: props.onDeleteNote,
     onEnterNeighborhood: props.onEnterNeighborhood,
     onExportNoteAsPdf: props.onExportNoteAsPdf,
-    onDeleteType: props.onDeleteType,
-    onDeleteView: props.onDeleteView,
-    onFilenameStemChange: props.onFilenameStemChange,
-    onFolderNameChange: props.onFolderNameChange,
-    onFolderPathChange: props.onFolderPathChange,
     onMoveFavoriteDown: props.onMoveFavoriteDown,
     onMoveFavoriteUp: props.onMoveFavoriteUp,
-    onMoveNoteToFolder: props.onMoveNoteToFolder,
-    onMoveViewDown: props.onMoveViewDown,
-    onMoveViewUp: props.onMoveViewUp,
-    onMoveTypeDown: props.onMoveTypeDown,
-    onMoveTypeUp: props.onMoveTypeUp,
     onNoteIconChange: props.onNoteIconChange,
     onOpenChangeNoteType: props.onOpenChangeNoteType,
-    onOpenCreateChildFolder: props.onOpenCreateChildFolder,
-    onOpenCreateNoteInFolder: props.onOpenCreateNoteInFolder,
-    onOpenFileInDefaultApp: props.onOpenFileInDefaultApp,
     onOpenFindInNote: props.onOpenFindInNote,
-    onOpenMoveNoteToFolder: props.onOpenMoveNoteToFolder,
     onOpenReplaceInNote: props.onOpenReplaceInNote,
-    onOpenRenameNoteFile: props.onOpenRenameNoteFile,
     onOpenSetNoteIcon: props.onOpenSetNoteIcon,
     onOpenTableOfContents: props.onOpenTableOfContents,
     onSelectTableOfContentsTarget: props.onSelectTableOfContentsTarget,
-    onPrimaryAllNotesShowImagesChange: props.onPrimaryAllNotesShowImagesChange,
-    onPrimaryAllNotesShowPdfsChange: props.onPrimaryAllNotesShowPdfsChange,
-    onPrimaryAllNotesShowUnsupportedChange: props.onPrimaryAllNotesShowUnsupportedChange,
-    onPrimaryDisplayPropertiesChange: props.onPrimaryDisplayPropertiesChange,
-    onPrimaryPropertyQueryChange: props.onPrimaryPropertyQueryChange,
-    onPropertyNameChange: props.onPropertyNameChange,
-    onPropertyValueChange: props.onPropertyValueChange,
-    onPropertyValueKindChange: props.onPropertyValueKindChange,
-    onRevealFile: props.onRevealFile,
-    onRelationshipNameChange: props.onRelationshipNameChange,
-    onRelationshipNoteSelect: props.onRelationshipNoteSelect,
-    onRelationshipNoteTitleChange: props.onRelationshipNoteTitleChange,
-    onRenameFolder: props.onRenameFolder,
-    onRevealFolder: props.onRevealFolder,
-    onRenameNoteFile: props.onRenameNoteFile,
-    onRenameNoteFileToTitle: props.onRenameNoteFileToTitle,
-    onRedoWorkspaceEdit: props.onRedoWorkspaceEdit,
     onRemoveNoteIcon: props.onRemoveNoteIcon,
-    onSavePrimaryNoteListProperties: props.onSavePrimaryNoteListProperties,
-    onSaveProperty: props.onSaveProperty,
-    onSaveRelationship: props.onSaveRelationship,
-    onSaveTypeDefinition: props.onSaveTypeDefinition,
-    onSaveView: props.onSaveView,
     onSearchQueryChange: props.onSearchQueryChange,
     onSelectNote: props.onSelectNote,
     onSetArchived: props.onSetArchived,
@@ -818,8 +795,66 @@ function actionSheetHandlers(props: ActionSheetHostProps) {
     onSetOrganized: props.onSetOrganized,
     onToggleFavorite: props.onToggleFavorite,
     onToggleNoteWidth: props.onToggleNoteWidth,
+    onUpdateNoteContent: props.onUpdateNoteContent,
+  }
+}
+
+function actionSheetFileHandlers(props: ActionSheetHostProps) {
+  return {
+    onCopyFolderPath: props.onCopyFolderPath,
+    onCreateFolder: props.onCreateFolder,
+    onDeleteFolder: props.onDeleteFolder,
+    onFilenameStemChange: props.onFilenameStemChange,
+    onFolderNameChange: props.onFolderNameChange,
+    onFolderPathChange: props.onFolderPathChange,
+    onMoveNoteToFolder: props.onMoveNoteToFolder,
+    onOpenCreateChildFolder: props.onOpenCreateChildFolder,
+    onOpenCreateNoteInFolder: props.onOpenCreateNoteInFolder,
+    onOpenFileInDefaultApp: props.onOpenFileInDefaultApp,
+    onOpenMoveNoteToFolder: props.onOpenMoveNoteToFolder,
+    onOpenRenameNoteFile: props.onOpenRenameNoteFile,
+    onRevealFile: props.onRevealFile,
+    onRenameFolder: props.onRenameFolder,
+    onRevealFolder: props.onRevealFolder,
+    onRenameNoteFile: props.onRenameNoteFile,
+    onRenameNoteFileToTitle: props.onRenameNoteFileToTitle,
+  }
+}
+
+function actionSheetPropertyHandlers(props: ActionSheetHostProps) {
+  return {
+    onCreateRelationshipTarget: props.onCreateRelationshipTarget,
+    onDeleteProperty: props.onDeleteProperty,
+    onPropertyNameChange: props.onPropertyNameChange,
+    onPropertyValueChange: props.onPropertyValueChange,
+    onPropertyValueKindChange: props.onPropertyValueKindChange,
+    onRelationshipNameChange: props.onRelationshipNameChange,
+    onRelationshipNoteSelect: props.onRelationshipNoteSelect,
+    onRelationshipNoteTitleChange: props.onRelationshipNoteTitleChange,
+    onSaveProperty: props.onSaveProperty,
+    onSaveRelationship: props.onSaveRelationship,
+  }
+}
+
+function actionSheetWorkspaceHandlers(props: ActionSheetHostProps) {
+  return {
+    onPrimaryAllNotesShowImagesChange: props.onPrimaryAllNotesShowImagesChange,
+    onPrimaryAllNotesShowPdfsChange: props.onPrimaryAllNotesShowPdfsChange,
+    onPrimaryAllNotesShowUnsupportedChange: props.onPrimaryAllNotesShowUnsupportedChange,
+    onPrimaryDisplayPropertiesChange: props.onPrimaryDisplayPropertiesChange,
+    onPrimaryPropertyQueryChange: props.onPrimaryPropertyQueryChange,
+    onSavePrimaryNoteListProperties: props.onSavePrimaryNoteListProperties,
+  }
+}
+
+function actionSheetTypeHandlers(props: ActionSheetHostProps) {
+  return {
+    onCreateType: props.onCreateType,
+    onDeleteType: props.onDeleteType,
+    onMoveTypeDown: props.onMoveTypeDown,
+    onMoveTypeUp: props.onMoveTypeUp,
+    onSaveTypeDefinition: props.onSaveTypeDefinition,
     onToggleTypeVisibility: props.onToggleTypeVisibility,
-    onUndoWorkspaceEdit: props.onUndoWorkspaceEdit,
     onTypeDisplayPropertiesChange: props.onTypeDisplayPropertiesChange,
     onTypeNameChange: props.onTypeNameChange,
     onTypePropertyQueryChange: props.onTypePropertyQueryChange,
@@ -839,7 +874,16 @@ function actionSheetHandlers(props: ActionSheetHostProps) {
     onTypeIconChange: props.onTypeIconChange,
     onTypeToneChange: props.onTypeToneChange,
     onTypeVisibleChange: props.onTypeVisibleChange,
-    onUpdateNoteContent: props.onUpdateNoteContent,
+  }
+}
+
+function actionSheetViewHandlers(props: ActionSheetHostProps) {
+  return {
+    onCreateView: props.onCreateView,
+    onDeleteView: props.onDeleteView,
+    onMoveViewDown: props.onMoveViewDown,
+    onMoveViewUp: props.onMoveViewUp,
+    onSaveView: props.onSaveView,
     onViewIconChange: props.onViewIconChange,
     onViewDisplayPropertiesChange: props.onViewDisplayPropertiesChange,
     onViewFiltersChange: props.onViewFiltersChange,

@@ -223,6 +223,7 @@ export function useTabletWorkspaceController({
   const createActions = createWorkspaceActions(workspaceActionsContext)
   const propertyActions = propertyWorkspaceActions({
     applyEdit,
+    closeAction,
     readOnlyForm,
     saveSelectedEdit,
     setOpenAction,
@@ -320,38 +321,55 @@ function openMobileActionSheetQaTarget({
   target: MobileActionSheetQaTarget
   workspaceSnapshot: MobileWorkspaceSnapshot
 }) {
+  if (openSimpleMobileActionSheetQaTarget(actions, target)) return
+  if (openDataBackedMobileActionSheetQaTarget(actions, target, workspaceSnapshot)) return
+  actions.onOpenSearch()
+}
+
+function openSimpleMobileActionSheetQaTarget(
+  actions: ReturnType<typeof actionSheetWorkspaceActions>,
+  target: MobileActionSheetQaTarget,
+) {
   if (target === 'addProperty') {
     actions.onAddProperty()
-    return
+    return true
   }
   if (target === 'addRelationship') {
     actions.onAddRelationship()
-    return
+    return true
   }
   if (target === 'createView') {
     actions.onOpenCreateView()
-    return
-  }
-  if (target === 'editProperty') {
-    const editableProperty = firstEditableProperty(workspaceSnapshot)
-    if (editableProperty) actions.onOpenEditProperty(editableProperty.key, editableProperty.value)
-    return
+    return true
   }
   if (target === 'editTypeVisibility') {
     actions.onOpenTypeVisibility()
-    return
+    return true
+  }
+  return false
+}
+
+function openDataBackedMobileActionSheetQaTarget(
+  actions: ReturnType<typeof actionSheetWorkspaceActions>,
+  target: MobileActionSheetQaTarget,
+  workspaceSnapshot: MobileWorkspaceSnapshot,
+) {
+  if (target === 'editProperty') {
+    const editableProperty = firstEditableProperty(workspaceSnapshot)
+    if (editableProperty) actions.onOpenEditProperty(editableProperty.key, editableProperty.value)
+    return true
   }
   if (target === 'editView') {
     const selection = firstSidebarItemSelection(workspaceSnapshot, 'views')
     if (selection) actions.onOpenViewActions(selection)
-    return
+    return true
   }
   if (target === 'editTypeSection') {
     const selection = firstSidebarItemSelection(workspaceSnapshot, 'types')
     if (selection) actions.onOpenTypeActions(selection)
-    return
+    return true
   }
-  actions.onOpenSearch()
+  return false
 }
 
 function firstEditableProperty(snapshot: MobileWorkspaceSnapshot): { key: string, value: MobilePropertyValue } | null {
@@ -617,16 +635,17 @@ function sidebarWorkspaceActionOpeners({
   }
 }
 
-function createWorkspaceActions({
-  applyEdit,
-  closeAction,
-  navigation,
-  readOnlyForm,
-  repositoryRequest,
-  setOpenAction,
-  updateReadOnlyForm,
-  workspaceSnapshot,
-}: WorkspaceActionsContext) {
+function createWorkspaceActions(context: WorkspaceActionsContext) {
+  const {
+    applyEdit,
+    closeAction,
+    navigation,
+    readOnlyForm,
+    repositoryRequest,
+    setOpenAction,
+    updateReadOnlyForm,
+    workspaceSnapshot,
+  } = context
   return {
     onCreateNote: (titleOverride?: string) => createWorkspaceNote({
       applyEdit,
@@ -843,6 +862,7 @@ function typeSectionSchemaWorkspaceActions({
 
 function propertyWorkspaceActions({
   applyEdit,
+  closeAction,
   readOnlyForm,
   saveSelectedEdit,
   setOpenAction,
@@ -850,6 +870,7 @@ function propertyWorkspaceActions({
   workspaceSnapshot,
 }: {
   applyEdit: ApplyWorkspaceEdit
+  closeAction: () => void
   readOnlyForm: TabletReadOnlyForm
   saveSelectedEdit: SaveSelectedEdit
   setOpenAction: SetOpenAction
@@ -861,7 +882,9 @@ function propertyWorkspaceActions({
   return {
     onDeleteProperty: (noteId: string, key: string) => {
       const edit = deletePropertyEdit(noteId, key)
-      if (edit) applyEdit(edit)
+      if (!edit) return
+      applyEdit(edit)
+      closeAction()
     },
     onInitializeProperties: (noteId: string) => {
       applyEdit({

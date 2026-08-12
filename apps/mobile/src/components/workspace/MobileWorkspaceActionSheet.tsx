@@ -55,6 +55,7 @@ import { chipTone } from './mobileWorkspaceTone'
 import {
   mobileActionSheetLongFormHeight,
   mobileActionSheetLayoutContract,
+  mobilePropertyDeleteActionVisible,
   mobileSingleTextFieldSubmitDisabled,
   mobileWorkspaceRelationshipTargetMaxSuggestions,
   mobileWorkspaceFormSheetAutoFocus,
@@ -127,6 +128,7 @@ export type MobileWorkspaceActionSheetProps = {
   onCreateView: () => void
   onDeleteFolder: () => void
   onDeleteNote: () => void
+  onDeleteProperty: (noteId: string, key: string) => void
   onEnterNeighborhood: (noteId: string) => void
   onExportNoteAsPdf: () => void
   onDeleteType: () => void
@@ -406,6 +408,16 @@ function SingleTextFieldContent({ config }: { config: SingleTextFieldConfig }) {
 }
 
 function singleTextFieldConfig(props: MobileWorkspaceActionSheetProps) {
+  const simpleConfig = simpleTextFieldConfig(props)
+  if (simpleConfig) return simpleConfig
+
+  const viewConfig = viewTextFieldConfig(props)
+  if (viewConfig) return viewConfig
+
+  throw new Error(`Unsupported single-text action: ${props.action}`)
+}
+
+function simpleTextFieldConfig(props: MobileWorkspaceActionSheetProps): SingleTextFieldConfig | null {
   if (props.action === 'createFolder') {
     return {
       inputLabel: mobileText('sidebar.folder.name'),
@@ -419,6 +431,57 @@ function singleTextFieldConfig(props: MobileWorkspaceActionSheetProps) {
     }
   }
 
+  if (props.action === 'createType') {
+    return {
+      inputLabel: mobileText('sidebar.action.createType'),
+      inputPlaceholder: mobileText('sidebar.action.createType'),
+      inputTestId: 'workspace-create-type-name-input',
+      inputValue: props.typeName,
+      onCancel: props.onClose,
+      onChangeText: props.onTypeNameChange,
+      onSubmit: props.onCreateType,
+      submitLabel: mobileText('common.create'),
+    }
+  }
+
+  return noteTextFieldConfig(props)
+}
+
+function noteTextFieldConfig(props: MobileWorkspaceActionSheetProps): SingleTextFieldConfig | null {
+  if (props.action === 'renameNoteFile') {
+    return {
+      inputLabel: mobileText('editor.filename.rename'),
+      inputPlaceholder: mobileText('editor.filename.rename'),
+      inputTestId: 'workspace-rename-file-input',
+      inputValue: props.filenameStem,
+      onCancel: props.onClose,
+      onChangeText: props.onFilenameStemChange,
+      onSubmit: props.onRenameNoteFile,
+      submitDisabled: notePathValidationBlocksSubmit(renameNoteFileValidation(props)),
+      submitLabel: mobileText('common.save'),
+    }
+  }
+
+  if (props.action === 'setNoteIcon') {
+    return {
+      inputLabel: mobileText('command.note.setIcon'),
+      inputPlaceholder: mobileText('command.note.setIcon'),
+      inputTestId: 'workspace-note-icon-input',
+      inputValue: props.noteIcon,
+      onCancel: props.onClose,
+      onChangeText: props.onNoteIconChange,
+      onSubmit: props.onSetNoteIcon,
+      secondaryAction: props.selectedNote?.icon ? (
+        <MobileButton label={mobileText('command.note.removeIcon')} variant="ghost" onPress={props.onRemoveNoteIcon} />
+      ) : undefined,
+      submitLabel: mobileText('common.save'),
+    }
+  }
+
+  return null
+}
+
+function viewTextFieldConfig(props: MobileWorkspaceActionSheetProps): SingleTextFieldConfig | null {
   if (props.action === 'editView') {
     return {
       extraContent: editViewContent(props),
@@ -456,50 +519,7 @@ function singleTextFieldConfig(props: MobileWorkspaceActionSheetProps) {
     }
   }
 
-  if (props.action === 'createType') {
-    return {
-      inputLabel: mobileText('sidebar.action.createType'),
-      inputPlaceholder: mobileText('sidebar.action.createType'),
-      inputTestId: 'workspace-create-type-name-input',
-      inputValue: props.typeName,
-      onCancel: props.onClose,
-      onChangeText: props.onTypeNameChange,
-      onSubmit: props.onCreateType,
-      submitLabel: mobileText('common.create'),
-    }
-  }
-
-  if (props.action === 'renameNoteFile') {
-    return {
-      inputLabel: mobileText('editor.filename.rename'),
-      inputPlaceholder: mobileText('editor.filename.rename'),
-      inputTestId: 'workspace-rename-file-input',
-      inputValue: props.filenameStem,
-      onCancel: props.onClose,
-      onChangeText: props.onFilenameStemChange,
-      onSubmit: props.onRenameNoteFile,
-      submitDisabled: notePathValidationBlocksSubmit(renameNoteFileValidation(props)),
-      submitLabel: mobileText('common.save'),
-    }
-  }
-
-  if (props.action === 'setNoteIcon') {
-    return {
-      inputLabel: mobileText('command.note.setIcon'),
-      inputPlaceholder: mobileText('command.note.setIcon'),
-      inputTestId: 'workspace-note-icon-input',
-      inputValue: props.noteIcon,
-      onCancel: props.onClose,
-      onChangeText: props.onNoteIconChange,
-      onSubmit: props.onSetNoteIcon,
-      secondaryAction: props.selectedNote?.icon ? (
-        <MobileButton label={mobileText('command.note.removeIcon')} variant="ghost" onPress={props.onRemoveNoteIcon} />
-      ) : undefined,
-      submitLabel: mobileText('common.save'),
-    }
-  }
-
-  throw new Error(`Unsupported single-text action: ${props.action}`)
+  return null
 }
 
 function viewFilterBuilder(props: MobileWorkspaceActionSheetProps) {
@@ -774,20 +794,22 @@ function VisibilitySwitchRow({
   )
 }
 
-function AddPropertyContent({
-  action,
-  notes,
-  onClose,
-  onPropertyNameChange,
-  onPropertyValueChange,
-  onPropertyValueKindChange,
-  onSaveProperty,
-  propertyName,
-  propertyValue,
-  propertyValueKind,
-  selectedNote,
-  typeDefinitions,
-}: MobileWorkspaceActionSheetProps) {
+function AddPropertyContent(props: MobileWorkspaceActionSheetProps) {
+  const {
+    action,
+    notes,
+    onClose,
+    onPropertyNameChange,
+    onPropertyValueChange,
+    onPropertyValueKindChange,
+    onDeleteProperty,
+    onSaveProperty,
+    propertyName,
+    propertyValue,
+    propertyValueKind,
+    selectedNote,
+    typeDefinitions,
+  } = props
   const editingProperty = action === 'editProperty'
   const lockedListKind = isMobileListPropertyKey(propertyName)
   const selectedValueKind = mobilePropertyValueKindForKey(propertyName, propertyValueKind)
@@ -832,6 +854,18 @@ function AddPropertyContent({
         onValueChange={onPropertyValueChange}
       />
       <SheetFooter>
+        {mobilePropertyDeleteActionVisible({
+          editingProperty,
+          hasSelectedNote: selectedNote !== null,
+        }) && selectedNote ? (
+          <MobileButton
+            label={mobileText('inspector.properties.deleteProperty')}
+            testID="workspace-property-delete-action"
+            tone="danger"
+            variant="ghost"
+            onPress={() => onDeleteProperty(selectedNote.id, propertyName)}
+          />
+        ) : null}
         <MobileButton label={mobileText('common.cancel')} variant="ghost" onPress={onClose} />
         <MobileButton disabled={!canSaveProperty} label={mobileText('common.save')} variant="primary" onPress={onSaveProperty} />
       </SheetFooter>

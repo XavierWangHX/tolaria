@@ -6,6 +6,7 @@ import {
   mobileSingleTextFieldSubmitDisabled,
   mobileWorkspaceRelationshipTargetMaxSuggestions,
   mobileActionSheetLongFormHeight,
+  mobilePropertyDeleteActionVisible,
   mobileWorkspaceFormSheetAutoFocus,
   mobileWorkspaceFormSheetMaxSuggestions,
   mobileWorkspaceActionGroupLayoutContract,
@@ -52,6 +53,21 @@ describe('mobile workspace action sheet', () => {
 
   it('opens workspace form sheets without forcing the native keyboard over the sheet', () => {
     expect(mobileWorkspaceFormSheetAutoFocus).toBe(false)
+  })
+
+  it('keeps destructive property removal inside edit sheets only', () => {
+    expect(mobilePropertyDeleteActionVisible({
+      editingProperty: true,
+      hasSelectedNote: true,
+    })).toBe(true)
+    expect(mobilePropertyDeleteActionVisible({
+      editingProperty: false,
+      hasSelectedNote: true,
+    })).toBe(false)
+    expect(mobilePropertyDeleteActionVisible({
+      editingProperty: true,
+      hasSelectedNote: false,
+    })).toBe(false)
   })
 
   it('bounds form sheet suggestions so the footer remains reachable on first open', () => {

@@ -47,26 +47,7 @@ import {
 import { MobileTypeIcon } from './MobileWorkspaceIcons'
 import { chipTone, noteTypeColor, noteTypeSoftColor, statusTone, tagTone } from './mobileWorkspaceTone'
 
-export function MobilePropertiesPanel({
-  compact,
-  fullWidth = false,
-  layoutProbe = false,
-  note,
-  onAddProperty,
-  onAddRelationship,
-  onDeleteProperty,
-  onEditProperty,
-  onEnterNeighborhood,
-  onFixInvalidFrontmatter,
-  onInitializeProperties,
-  onCreateMissingType,
-  onOpenChangeNoteType,
-  onRemoveRelationship,
-  onSelectNote,
-  propertyDisplayModes,
-  referenceGroups = [],
-  typeDefinitions,
-}: {
+type MobilePropertiesPanelProps = {
   compact: boolean
   fullWidth?: boolean
   layoutProbe?: boolean
@@ -85,7 +66,14 @@ export function MobilePropertiesPanel({
   propertyDisplayModes?: Record<string, MobilePropertyDisplayMode> | null
   referenceGroups?: MobileNeighborhoodGroup[]
   typeDefinitions?: MobileTypeDefinitions
-}) {
+}
+
+export function MobilePropertiesPanel(props: MobilePropertiesPanelProps) {
+  const {
+    compact,
+    fullWidth = false,
+    layoutProbe = false,
+  } = props
   const propertyLayoutProbe = useMobileLayoutProbe(layoutProbe)
 
   return (
@@ -103,34 +91,51 @@ export function MobilePropertiesPanel({
       </MobileToolbar>
       <ScrollView
         {...probeProps(propertyLayoutProbe.probe, 'properties.scroll')}
-        contentContainerStyle={[panelStyles.content, note ? null : panelStyles.emptyContent]}
+        contentContainerStyle={[panelStyles.content, props.note ? null : panelStyles.emptyContent]}
         keyboardShouldPersistTaps="handled"
       >
-        {note ? (
-          <NoteProperties
-            layoutProbe={propertyLayoutProbe.probe}
-            note={note}
-            onAddProperty={onAddProperty}
-            onAddRelationship={onAddRelationship}
-            onDeleteProperty={onDeleteProperty}
-            onEditProperty={onEditProperty}
-            onEnterNeighborhood={onEnterNeighborhood}
-            onFixInvalidFrontmatter={onFixInvalidFrontmatter}
-            onInitializeProperties={onInitializeProperties}
-            onCreateMissingType={onCreateMissingType}
-            onOpenChangeNoteType={onOpenChangeNoteType}
-            onRemoveRelationship={onRemoveRelationship}
-            onSelectNote={onSelectNote}
-            propertyDisplayModes={propertyDisplayModes}
-            referenceGroups={referenceGroups}
-            typeDefinitions={typeDefinitions}
-          />
-        ) : (
-          <PropertiesEmptyState />
-        )}
+        <PropertiesPanelContent layoutProbe={propertyLayoutProbe.probe} props={props} />
       </ScrollView>
     </MobilePanel>
   )
+}
+
+function PropertiesPanelContent({
+  layoutProbe,
+  props,
+}: {
+  layoutProbe: MobileLayoutProbe
+  props: MobilePropertiesPanelProps
+}) {
+  if (!props.note) return <PropertiesEmptyState />
+
+  return (
+    <NoteProperties
+      layoutProbe={layoutProbe}
+      {...notePropertiesProps(props)}
+    />
+  )
+}
+
+function notePropertiesProps(props: MobilePropertiesPanelProps): Omit<NotePropertiesProps, 'layoutProbe'> {
+  if (!props.note) throw new Error('A selected note is required to build property rows')
+
+  return {
+    note: props.note,
+    onAddProperty: props.onAddProperty,
+    onAddRelationship: props.onAddRelationship,
+    onEditProperty: props.onEditProperty,
+    onEnterNeighborhood: props.onEnterNeighborhood,
+    onFixInvalidFrontmatter: props.onFixInvalidFrontmatter,
+    onInitializeProperties: props.onInitializeProperties,
+    onCreateMissingType: props.onCreateMissingType,
+    onOpenChangeNoteType: props.onOpenChangeNoteType,
+    onRemoveRelationship: props.onRemoveRelationship,
+    onSelectNote: props.onSelectNote,
+    propertyDisplayModes: props.propertyDisplayModes,
+    referenceGroups: props.referenceGroups ?? [],
+    typeDefinitions: props.typeDefinitions,
+  }
 }
 
 type NotePropertiesProps = {
@@ -138,7 +143,6 @@ type NotePropertiesProps = {
   note: MobileNote
   onAddProperty: (key?: string) => void
   onAddRelationship: (key?: string) => void
-  onDeleteProperty: (noteId: string, key: string) => void
   onEditProperty: (noteId: string, key: string, value: MobilePropertyValue) => void
   onEnterNeighborhood?: (noteId: string) => void
   onFixInvalidFrontmatter?: () => void
@@ -233,7 +237,7 @@ function StandardPropertyRows({ missingTypeName, props }: { missingTypeName: str
 }
 
 function CustomPropertyRows({ propertySlots, props }: { propertySlots: MobileInspectorPropertySlot[]; props: NotePropertiesProps }) {
-  const { layoutProbe, note, onAddProperty, onDeleteProperty, onEditProperty, propertyDisplayModes } = props
+  const { layoutProbe, note, onAddProperty, onEditProperty, propertyDisplayModes } = props
 
   return (
     <>
@@ -242,7 +246,6 @@ function CustomPropertyRows({ propertySlots, props }: { propertySlots: MobileIns
           layoutProbe={layoutProbe}
           noteId={note.id}
           property={{ key: 'icon', label: 'Icon', value: note.icon }}
-          onDeleteProperty={onDeleteProperty}
           onEditProperty={onEditProperty}
         />
       ) : null}
@@ -253,7 +256,6 @@ function CustomPropertyRows({ propertySlots, props }: { propertySlots: MobileIns
           noteId={note.id}
           property={property}
           propertyDisplayModes={propertyDisplayModes}
-          onDeleteProperty={onDeleteProperty}
           onEditProperty={onEditProperty}
         />
       ))}
@@ -406,14 +408,12 @@ function EditableTagsValue({ labels, onPress }: { labels: string[]; onPress: () 
 function EditablePropertyRow({
   layoutProbe,
   noteId,
-  onDeleteProperty,
   onEditProperty,
   propertyDisplayModes,
   property,
 }: {
   layoutProbe: MobileLayoutProbe
   noteId: string
-  onDeleteProperty: (noteId: string, key: string) => void
   onEditProperty: (noteId: string, key: string, value: MobilePropertyValue) => void
   propertyDisplayModes?: Record<string, MobilePropertyDisplayMode> | null
   property: MobileProperty
@@ -441,18 +441,9 @@ function EditablePropertyRow({
           accessibilityRole="button"
           style={({ pressed }) => [propertyStyles.editableValue, pressed ? propertyStyles.editableValuePressed : null]}
           testID={`${testId}-edit`}
-          onLongPress={() => onDeleteProperty(noteId, property.key)}
           onPress={() => onEditProperty(noteId, property.key, property.value)}
         >
           <EditablePropertyValueDisplay display={display} />
-          <Pressable
-            accessibilityLabel={mobileText('inspector.properties.deleteProperty')}
-            accessibilityRole="button"
-            hitSlop={8}
-            onPress={() => onDeleteProperty(noteId, property.key)}
-          >
-            <X color={mobileColors.textMuted} size={desktopRelationshipParity.removeIconSize} weight="bold" />
-          </Pressable>
         </Pressable>
       }
     />
