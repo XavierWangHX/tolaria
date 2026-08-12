@@ -21,6 +21,14 @@ describe('TenTap iOS WebView patch', () => {
     expect(utilitiesPatch).toContain('styleElement.innerHTML = cssContent;\n+    true;')
     expect(utilitiesPatch).toContain('window.platform = "${Platform.OS}";\n+    true;')
   })
+
+  it('does not reload a bundled custom editor after its first iOS load', () => {
+    const richTextPatch = filePatch('src/RichText/RichText.tsx')
+
+    expect(richTextPatch).toContain(
+      "+          if (Platform.OS === 'ios' && key === 'webview' && !editor.customSource) {",
+    )
+  })
 })
 
 function filePatch(path: string) {

@@ -39,7 +39,7 @@ overrides:
 
 patchedDependencies:
   '@10play/tentap-editor@1.0.1':
-    hash: 04d6f14955403a5e825ae9fafe4e311b57992e0e0acce900780ab0cfc3994135
+    hash: b9e4ef4f36090797f998292ee0a829e9d53abf9662dcf943b3d50f44f60f9c3a
     path: patches/@10play__tentap-editor@1.0.1.patch
   '@blocknote/code-block@0.46.2':
     hash: c006cad64c22a2efc10299d85bf72407150fd29a1f16d497b8db0faa071535f8
@@ -352,7 +352,7 @@ importers:
     dependencies:
       '@10play/tentap-editor':
         specifier: ^1.0.1
-        version: 1.0.1(patch_hash=04d6f14955403a5e825ae9fafe4e311b57992e0e0acce900780ab0cfc3994135)(@floating-ui/dom@1.7.5)(@types/react-dom@19.2.3(@types/react@19.1.17))(@types/react@19.1.17)(react-native-webview@13.15.0(react-native@0.81.5(@babel/core@7.29.6)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.6)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+        version: 1.0.1(patch_hash=b9e4ef4f36090797f998292ee0a829e9d53abf9662dcf943b3d50f44f60f9c3a)(@floating-ui/dom@1.7.5)(@types/react-dom@19.2.3(@types/react@19.1.17))(@types/react@19.1.17)(react-native-webview@13.15.0(react-native@0.81.5(@babel/core@7.29.6)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.6)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       '@expo/metro-runtime':
         specifier: 6.1.2
         version: 6.1.2(expo@54.0.36)(react-dom@19.1.0(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.6)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -8897,7 +8897,7 @@ snapshots:
 
   '@0no-co/graphql.web@1.3.3': {}
 
-  '@10play/tentap-editor@1.0.1(patch_hash=04d6f14955403a5e825ae9fafe4e311b57992e0e0acce900780ab0cfc3994135)(@floating-ui/dom@1.7.5)(@types/react-dom@19.2.3(@types/react@19.1.17))(@types/react@19.1.17)(react-native-webview@13.15.0(react-native@0.81.5(@babel/core@7.29.6)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.6)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)':
+  '@10play/tentap-editor@1.0.1(patch_hash=b9e4ef4f36090797f998292ee0a829e9d53abf9662dcf943b3d50f44f60f9c3a)(@floating-ui/dom@1.7.5)(@types/react-dom@19.2.3(@types/react@19.1.17))(@types/react@19.1.17)(react-native-webview@13.15.0(react-native@0.81.5(@babel/core@7.29.6)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.6)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)':
     dependencies:
       '@tiptap/core': 3.22.5(@tiptap/pm@3.22.5)
       '@tiptap/extension-blockquote': 3.22.5(@tiptap/core@3.22.5(@tiptap/pm@3.22.5))

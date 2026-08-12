@@ -1,5 +1,5 @@
 diff --git a/lib/commonjs/RichText/RichText.js b/lib/commonjs/RichText/RichText.js
-index f1412dfb5526f8cbe2a943b13bb6ed908766f180..50eedee108e28f0c39ff308f30f40a23aace23f4 100644
+index f1412dfb5526f8cbe2a943b13bb6ed908766f180..c818a78dfa9aa15965a52e6ba713e594c6afcd55 100644
 --- a/lib/commonjs/RichText/RichText.js
 +++ b/lib/commonjs/RichText/RichText.js
 @@ -79,6 +79,7 @@ const RichText = ({
@@ -10,6 +10,15 @@ index f1412dfb5526f8cbe2a943b13bb6ed908766f180..50eedee108e28f0c39ff308f30f40a23
          `);
        }
      };
+@@ -131,7 +132,7 @@ const RichText = ({
+       setLoaded(true);
+       // This is a workaround for iOS to make sure the webview is loaded
+       // See https://github.com/react-native-webview/react-native-webview/issues/3578
+-      if (_reactNative.Platform.OS === 'ios' && key === 'webview') {
++      if (_reactNative.Platform.OS === 'ios' && key === 'webview' && !editor.customSource) {
+         setKey('webview_reloaded');
+       }
+       props.onLoad && props.onLoad(e);
 diff --git a/lib/commonjs/RichText/utils.js b/lib/commonjs/RichText/utils.js
 index 31d48dcef2d35a305f4fcf281f6ad1377adcd118..1d5adae664ffd8089ea849cde95829a9e354897b 100644
 --- a/lib/commonjs/RichText/utils.js
@@ -31,7 +40,7 @@ index 31d48dcef2d35a305f4fcf281f6ad1377adcd118..1d5adae664ffd8089ea849cde95829a9
  };
  exports.getInjectedJSBeforeContentLoad = getInjectedJSBeforeContentLoad;
 diff --git a/lib/module/RichText/RichText.js b/lib/module/RichText/RichText.js
-index 482260a81fed9adb7485496894648c0dd23b92e0..42c442a6f8e04423b8506b25e84749a34043b700 100644
+index 482260a81fed9adb7485496894648c0dd23b92e0..eff0535646a39fc12bfed0d33ce6a8669447fce9 100644
 --- a/lib/module/RichText/RichText.js
 +++ b/lib/module/RichText/RichText.js
 @@ -71,6 +71,7 @@ export const RichText = ({
@@ -42,6 +51,15 @@ index 482260a81fed9adb7485496894648c0dd23b92e0..42c442a6f8e04423b8506b25e84749a3
          `);
        }
      };
+@@ -123,7 +124,7 @@ export const RichText = ({
+       setLoaded(true);
+       // This is a workaround for iOS to make sure the webview is loaded
+       // See https://github.com/react-native-webview/react-native-webview/issues/3578
+-      if (Platform.OS === 'ios' && key === 'webview') {
++      if (Platform.OS === 'ios' && key === 'webview' && !editor.customSource) {
+         setKey('webview_reloaded');
+       }
+       props.onLoad && props.onLoad(e);
 diff --git a/lib/module/RichText/utils.js b/lib/module/RichText/utils.js
 index 9b94291a928a611f188b25c83a5f21acd8eeca23..5fe8e4c5438d15ad299387834baf112bb0652b7d 100644
 --- a/lib/module/RichText/utils.js
@@ -63,7 +81,7 @@ index 9b94291a928a611f188b25c83a5f21acd8eeca23..5fe8e4c5438d15ad299387834baf112b
  };
  const formatForInjection = js => {
 diff --git a/src/RichText/RichText.tsx b/src/RichText/RichText.tsx
-index 88867f95bcd0f6804e97f4958647ff334a17a42b..38ee5046b67398ec4bee7a09f67eafe8f133d317 100644
+index 88867f95bcd0f6804e97f4958647ff334a17a42b..705ce9a2aa8ad26363bbd552cd95343ea6705767 100644
 --- a/src/RichText/RichText.tsx
 +++ b/src/RichText/RichText.tsx
 @@ -81,6 +81,7 @@ export const RichText = ({
@@ -74,6 +92,15 @@ index 88867f95bcd0f6804e97f4958647ff334a17a42b..38ee5046b67398ec4bee7a09f67eafe8
          `);
        }
      };
+@@ -151,7 +152,7 @@ export const RichText = ({
+           setLoaded(true);
+           // This is a workaround for iOS to make sure the webview is loaded
+           // See https://github.com/react-native-webview/react-native-webview/issues/3578
+-          if (Platform.OS === 'ios' && key === 'webview') {
++          if (Platform.OS === 'ios' && key === 'webview' && !editor.customSource) {
+             setKey('webview_reloaded');
+           }
+           props.onLoad && props.onLoad(e);
 diff --git a/src/RichText/utils.ts b/src/RichText/utils.ts
 index 652c018b570c6df9216793b94c68837fc9ac4da7..eaecce7aef5f783b09182f998bdc10c5afe6cc36 100644
 --- a/src/RichText/utils.ts
