@@ -5,6 +5,7 @@ import { TenTapStartKit, useTenTap } from '@10play/tentap-editor/web'
 import { MobileCodeBlockBridge } from './MobileWysiwygCodeBlockBridge'
 import { MobileMathInlineBridge } from './MobileWysiwygMathBridge'
 import { MobileTableBridge } from './MobileWysiwygTableBridge'
+import { MobileWysiwygOutlineBridge } from './MobileWysiwygOutlineBridge'
 
 declare global {
   interface Window {
@@ -17,25 +18,20 @@ const mobileTenTapExtensions = [
   ...TenTapStartKit,
   MobileCodeBlockBridge,
   MobileMathInlineBridge,
+  MobileWysiwygOutlineBridge,
   MobileTableBridge,
 ]
 
 function enabledTenTapExtensions() {
-  return mobileTenTapExtensions.filter((extension) => (
-    !window.whiteListBridgeExtensions
-    || window.whiteListBridgeExtensions.includes(extension.name)
-  ))
+  return mobileTenTapExtensions.filter(
+    (extension) => !window.whiteListBridgeExtensions || window.whiteListBridgeExtensions.includes(extension.name),
+  )
 }
 
 export function MobileWysiwygTenTapEditor() {
   const editor = useTenTap({ bridges: enabledTenTapExtensions() })
 
-  return (
-    <EditorContent
-      editor={editor}
-      className={window.dynamicHeight ? 'dynamic-height' : undefined}
-    />
-  )
+  return <EditorContent editor={editor} className={window.dynamicHeight ? 'dynamic-height' : undefined} />
 }
 
 function renderWhenInjected() {

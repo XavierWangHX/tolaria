@@ -330,6 +330,13 @@ export const mobileParityInventory = [
     surface: 'Tablet editor panel',
   },
   {
+    assertions: ['editor chrome computed styles'],
+    contracts: ['desktopEditorParity', 'desktopPanelParity', 'desktopToolbarParity'],
+    desktopSource: 'BreadcrumbBar empty state and desktop file-preview fallback',
+    mobileFile: 'src/screens/TabletEditorPanelChrome.tsx',
+    surface: 'Tablet editor fallback chrome',
+  },
+  {
     assertions: ['panel widths, swipe gesture checks, click navigation'],
     contracts: ['desktopPanelParity'],
     desktopSource: 'Desktop four-panel workspace shell',
