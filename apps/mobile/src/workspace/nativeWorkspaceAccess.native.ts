@@ -1,5 +1,10 @@
 import { requireOptionalNativeModule } from 'expo'
-import type { NativeWorkspaceAccessModule, NativeWorkspaceRecord } from './nativeWorkspaceAccess'
+import type {
+  NativeWorkspaceAccessModule,
+  NativeWorkspaceBridgeRecord,
+  NativeWorkspaceIndex,
+  NativeWorkspaceRecord,
+} from './nativeWorkspaceAccess'
 
 let cachedModule: NativeWorkspaceAccessModule | null | undefined
 
@@ -46,10 +51,24 @@ export async function restoreNativeWorkspace(
   }
 }
 
-function normalizedWorkspaceRecord(record: NativeWorkspaceRecord | null): NativeWorkspaceRecord | null {
+function normalizedWorkspaceRecord(record: NativeWorkspaceBridgeRecord | null): NativeWorkspaceRecord | null {
   const uri = record?.uri.trim()
   const label = record?.label.trim()
-  return uri && label ? { label, uri } : null
+  if (!uri || !label) return null
+  const index = record?.index ?? parsedWorkspaceIndex(record?.indexJson)
+  return index ? { index, label, uri } : { label, uri }
+}
+
+function parsedWorkspaceIndex(value: string | undefined): NativeWorkspaceIndex | undefined {
+  if (!value) return undefined
+  try {
+    const candidate = JSON.parse(value) as Partial<NativeWorkspaceIndex>
+    return Array.isArray(candidate.directories) && Array.isArray(candidate.files)
+      ? { directories: candidate.directories, files: candidate.files }
+      : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export type { NativeWorkspaceAccessModule } from './nativeWorkspaceAccess'

@@ -203,6 +203,132 @@ public class TolariaWorkspaceAccessModule: Module {
   }
 
   private func workspaceRecord(uri: String, label: String) -> [String: String] {
-    return ["label": label, "uri": uri]
+    let root = URL(string: uri)
+    return [
+      "indexJson": root.flatMap(workspaceIndexJson) ?? emptyWorkspaceIndexJson,
+      "label": label,
+      "uri": uri,
+    ]
+  }
+
+  private func workspaceIndexJson(_ root: URL) -> String? {
+    let keys: Set<URLResourceKey> = [
+      .contentModificationDateKey,
+      .creationDateKey,
+      .fileSizeKey,
+      .isDirectoryKey,
+      .isRegularFileKey,
+    ]
+    guard let enumerator = FileManager.default.enumerator(
+      at: root,
+      includingPropertiesForKeys: Array(keys),
+      options: [.skipsHiddenFiles, .skipsPackageDescendants]
+    ) else { return emptyWorkspaceIndexJson }
+
+    var directories: [String] = []
+    var files: [[String: Any]] = []
+    for case let url as URL in enumerator {
+      appendWorkspaceEntry(
+        url,
+        root: root,
+        keys: keys,
+        enumerator: enumerator,
+        directories: &directories,
+        files: &files
+      )
+    }
+    let index: [String: Any] = ["directories": directories, "files": files]
+    guard let data = try? JSONSerialization.data(withJSONObject: index) else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+
+  private func appendWorkspaceEntry(
+    _ url: URL,
+    root: URL,
+    keys: Set<URLResourceKey>,
+    enumerator: FileManager.DirectoryEnumerator,
+    directories: inout [String],
+    files: inout [[String: Any]]
+  ) {
+    guard let values = try? url.resourceValues(forKeys: keys) else { return }
+    let relativePath = workspaceRelativePath(url, root: root)
+    guard values.isDirectory != true else {
+      appendWorkspaceDirectory(
+        url,
+        relativePath: relativePath,
+        enumerator: enumerator,
+        directories: &directories
+      )
+      return
+    }
+    guard values.isRegularFile == true, !relativePath.isEmpty else { return }
+    files.append(workspaceFileRecord(url, relativePath: relativePath, values: values))
+  }
+
+  private func appendWorkspaceDirectory(
+    _ url: URL,
+    relativePath: String,
+    enumerator: FileManager.DirectoryEnumerator,
+    directories: inout [String]
+  ) {
+    guard url.lastPathComponent != "node_modules" else {
+      enumerator.skipDescendants()
+      return
+    }
+    guard !relativePath.isEmpty else { return }
+    directories.append(relativePath)
+  }
+
+  private func workspaceFileRecord(
+    _ url: URL,
+    relativePath: String,
+    values: URLResourceValues
+  ) -> [String: Any] {
+    let content = workspaceTextContent(url, relativePath: relativePath)
+    return [
+      "absolutePath": url.absoluteString,
+      "content": content,
+      "createdAt": milliseconds(values.creationDate),
+      "modifiedAt": milliseconds(values.contentModificationDate),
+      "relativePath": relativePath,
+      "size": values.fileSize ?? content.utf8.count,
+    ]
+  }
+
+  private func workspaceTextContent(_ url: URL, relativePath: String) -> String {
+    guard isWorkspaceTextFile(relativePath) else { return "" }
+    return (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+  }
+
+  private func workspaceRelativePath(_ url: URL, root: URL) -> String {
+    let rootPath = root.standardizedFileURL.path
+    let path = url.standardizedFileURL.path
+    guard path.hasPrefix(rootPath) else { return "" }
+    return String(path.dropFirst(rootPath.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+  }
+
+  private func isWorkspaceTextFile(_ path: String) -> Bool {
+    let url = URL(fileURLWithPath: path)
+    let extensionName = url.pathExtension.lowercased()
+    return workspaceTextExtensions.contains(extensionName)
+      || workspaceTextFileNames.contains(url.lastPathComponent.lowercased())
+  }
+
+  private func milliseconds(_ date: Date?) -> Any {
+    return date.map { $0.timeIntervalSince1970 * 1000 } ?? NSNull()
   }
 }
+
+private let emptyWorkspaceIndexJson = #"{"directories":[],"files":[]}"#
+
+private let workspaceTextExtensions: Set<String> = [
+  "bash", "bat", "c", "cfg", "clj", "cmd", "conf", "cpp", "css", "csv", "el", "erl",
+  "ex", "exs", "fish", "go", "graphql", "h", "hcl", "hpp", "hs", "htm", "html", "ini",
+  "java", "jl", "js", "json", "jsx", "kt", "less", "lisp", "lua", "md", "markdown", "mdx",
+  "ml", "nix", "properties", "ps1", "py", "r", "rb", "rs", "scss", "sh", "sql", "svelte",
+  "swift", "tf", "toml", "ts", "tsx", "txt", "vim", "vue", "xml", "yaml", "yml", "zig", "zsh",
+]
+
+private let workspaceTextFileNames: Set<String> = [
+  ".editorconfig", ".env", ".gitignore", "brewfile", "dockerfile", "makefile",
+]

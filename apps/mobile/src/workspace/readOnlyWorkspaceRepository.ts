@@ -4,6 +4,7 @@ import type { MobileWorkspaceWrite } from './mobileWorkspaceEditing'
 import { snapshotWithMobileVaultConfig } from './mobileVaultConfig'
 import { expoWorkspaceFileSystem } from './expoWorkspaceFileSystem'
 import { createFileSystemWorkspaceRepository } from './fileSystemWorkspaceRepository'
+import type { WorkspaceFileIndex } from './fileSystemWorkspaceRepository'
 
 export type ReadOnlyWorkspaceRequest = {
   scenarioId?: string | null
@@ -11,6 +12,7 @@ export type ReadOnlyWorkspaceRequest = {
   vaultAlias?: string | null
   vaultLabel?: string | null
   vaultRootUri?: string | null
+  workspaceIndex?: WorkspaceFileIndex | null
 }
 
 export type ReadOnlyWorkspaceRepository = {

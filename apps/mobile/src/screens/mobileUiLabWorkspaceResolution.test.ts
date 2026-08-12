@@ -2,9 +2,23 @@ import { describe, expect, it, vi } from 'vitest'
 import { workspaceScenarioForId } from '../fixtures/workspaceFixtures'
 import type { ReadOnlyWorkspaceRepository } from '../workspace/readOnlyWorkspaceRepository'
 import {
+  initialMobileUiNativeSearch,
   mobileUiRequestedWorkspaceSource,
   resolveMobileUiWorkspace,
 } from './mobileUiLabWorkspaceResolution'
+
+describe('initialMobileUiNativeSearch', () => {
+  it('prefers explicit launch arguments over a stale initial deep link', () => {
+    expect(initialMobileUiNativeSearch({
+      initialUrlSearch: '?source=fixture',
+      launchSearch: '?source=native-vault',
+    })).toBe('?source=native-vault')
+    expect(initialMobileUiNativeSearch({
+      initialUrlSearch: '?source=fixture',
+      launchSearch: '',
+    })).toBe('?source=fixture')
+  })
+})
 
 describe('resolveMobileUiWorkspace', () => {
   it('prioritizes an isolated persistence repository over the ambient dev vault', () => {

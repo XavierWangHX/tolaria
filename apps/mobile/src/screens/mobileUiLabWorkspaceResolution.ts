@@ -39,6 +39,16 @@ const configuredWorkspaceSources: Record<string, NonNullable<ReadOnlyWorkspaceRe
   'native-vault': 'native',
 }
 
+export function initialMobileUiNativeSearch({
+  initialUrlSearch,
+  launchSearch,
+}: {
+  initialUrlSearch: string
+  launchSearch: string
+}) {
+  return launchSearch || initialUrlSearch
+}
+
 export function mobileUiRequestedWorkspaceSource({
   hasDevVaultUrl = false,
   hasNativeWorkspace,

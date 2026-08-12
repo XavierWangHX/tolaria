@@ -3,6 +3,7 @@ import {
   importNativeWorkspace,
   pickAndImportNativeWorkspace,
   restoreNativeWorkspace,
+  type NativeWorkspaceIndex,
   type NativeWorkspaceAccessModule,
 } from './nativeWorkspaceAccess'
 
@@ -43,17 +44,56 @@ describe('native workspace access', () => {
   })
 
   it('restores a persisted workspace URI and rejects malformed native results', async () => {
+    const index: NativeWorkspaceIndex = {
+      directories: ['Writing'],
+      files: [{
+        absolutePath: 'file:///vault/Writing/Indexed%20note.md',
+        content: '# Indexed note\n',
+        createdAt: 1,
+        modifiedAt: 2,
+        relativePath: 'Writing/Indexed note.md',
+        size: 15,
+      }],
+    }
     const restored: NativeWorkspaceAccessModule = {
       importWorkspace: vi.fn(),
-      restoreWorkspace: vi.fn().mockResolvedValue({ label: 'Vault', uri: 'file:///vault' }),
+      restoreWorkspace: vi.fn().mockResolvedValue({ index, label: 'Vault', uri: 'file:///vault' }),
     }
     const malformed: NativeWorkspaceAccessModule = {
       importWorkspace: vi.fn(),
       restoreWorkspace: vi.fn().mockResolvedValue({ label: ' ', uri: '  ' }),
     }
 
-    await expect(restoreNativeWorkspace(restored)).resolves.toEqual({ label: 'Vault', uri: 'file:///vault' })
+    await expect(restoreNativeWorkspace(restored)).resolves.toEqual({ index, label: 'Vault', uri: 'file:///vault' })
     await expect(restoreNativeWorkspace(malformed)).resolves.toBeNull()
+  })
+
+  it('decodes the workspace index returned by the native bridge', async () => {
+    const index: NativeWorkspaceIndex = {
+      directories: ['Writing'],
+      files: [{
+        absolutePath: 'file:///vault/Writing/Indexed%20note.md',
+        content: '# Indexed note\n',
+        createdAt: 1,
+        modifiedAt: 2,
+        relativePath: 'Writing/Indexed note.md',
+        size: 15,
+      }],
+    }
+    const module: NativeWorkspaceAccessModule = {
+      importWorkspace: vi.fn(),
+      restoreWorkspace: vi.fn().mockResolvedValue({
+        indexJson: JSON.stringify(index),
+        label: 'Vault',
+        uri: 'file:///vault',
+      }),
+    }
+
+    await expect(restoreNativeWorkspace(module)).resolves.toEqual({
+      index,
+      label: 'Vault',
+      uri: 'file:///vault',
+    })
   })
 
   it('fails closed when bookmark persistence or restoration throws', async () => {

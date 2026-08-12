@@ -94,9 +94,11 @@ import {
 import { requestedActionSheetQaTarget } from './mobileActionSheetQaTarget'
 import { tabletTransitionProbeMode } from './tabletTransitionProbeMode'
 import {
+  initialMobileUiNativeSearch,
   mobileUiRequestedWorkspaceSource,
   resolveMobileUiWorkspace,
 } from './mobileUiLabWorkspaceResolution'
+import { mobileWorkspaceKey } from './mobileWorkspaceKey'
 
 type DevVaultLoadState =
   | { status: 'idle' | 'loading' }
@@ -134,7 +136,7 @@ export function MobileUiLab() {
     wysiwygPersistenceProbe,
   })
   const workspaceKey = mobileWorkspaceKey({
-    ...qa,
+    flags: qa,
     qaRun: searchParams.get('qaRun'),
     scenarioId,
     snapshot,
@@ -374,6 +376,7 @@ function useMobileUiWorkspaceSource({
     vaultAlias: currentVaultAlias(searchParams, nativeWorkspace),
     vaultLabel: currentVaultLabel(searchParams, nativeWorkspace),
     vaultRootUri: currentVaultRootUri(searchParams, nativeWorkspace),
+    workspaceIndex: nativeWorkspace?.index,
   }, { workspacePersistenceProbe, wysiwygPersistenceProbe })
   const probeRepository = mobileRepositoryForProbes({ workspacePersistenceProbe, wysiwygPersistenceProbe })
   const { baseSnapshot, repository } = resolveMobileUiWorkspace({
@@ -486,121 +489,8 @@ function snapshotWithTableOfContentsProbeContent(snapshot: MobileWorkspaceSnapsh
   }
 }
 
-function mobileWorkspaceKey({
-  initialEditorEditing,
-  initialEditorEditingMode,
-  initialCommandPaletteOpen,
-  forceDesktopPanels,
-  layoutProbe,
-  mobileCommandPaletteProbe,
-  mobileKeyboardShortcutProbe,
-  qaRun,
-  scenarioId,
-  snapshot,
-  source,
-  sourceSelectionProbe,
-  mobileActionAdapterProbe,
-  tableOfContentsProbe,
-  tabletTransitionProbe,
-  workspacePersistenceProbe,
-  wysiwygAutocompleteProbe,
-  wysiwygExternalLinkProbe,
-  wysiwygFormatCommandProbe,
-  wysiwygInputTransformProbe,
-  wysiwygMarkdownBlockProbe,
-  wysiwygMathEditProbe,
-  wysiwygTableCommandMutationProbe,
-  wysiwygWikilinkInsertProbe,
-  wysiwygMutationProbe,
-  wysiwygPersistenceProbe,
-}: {
-  initialEditorEditing: boolean
-  initialEditorEditingMode: string
-  initialCommandPaletteOpen: boolean
-  forceDesktopPanels: boolean
-  layoutProbe: boolean
-  mobileCommandPaletteProbe: boolean
-  mobileKeyboardShortcutProbe: boolean
-  qaRun: string | null
-  scenarioId: string | null
-  snapshot: ReturnType<typeof readOnlyWorkspaceRepository.readSnapshot>
-  source: ReturnType<typeof currentSnapshotSource>
-  sourceSelectionProbe: boolean
-  mobileActionAdapterProbe: boolean
-  tableOfContentsProbe: boolean
-  tabletTransitionProbe: TabletTransitionProbeMode
-  workspacePersistenceProbe: boolean
-  wysiwygAutocompleteProbe: boolean
-  wysiwygExternalLinkProbe: boolean
-  wysiwygFormatCommandProbe: boolean
-  wysiwygInputTransformProbe: boolean
-  wysiwygMarkdownBlockProbe: boolean
-  wysiwygMathEditProbe: boolean
-  wysiwygTableCommandMutationProbe: boolean
-  wysiwygWikilinkInsertProbe: boolean
-  wysiwygMutationProbe: boolean
-  wysiwygPersistenceProbe: boolean
-}) {
-  const sourceInfo = snapshot.source
-
-  return [
-    source,
-    scenarioIdOrDefault(scenarioId),
-    qaRun ?? 'interactive',
-    flagKey(initialEditorEditing, 'raw-editor', 'read-editor'),
-    initialEditorEditingMode,
-    flagKey(initialCommandPaletteOpen, 'command-palette-open', 'command-palette-closed'),
-    flagKey(forceDesktopPanels, 'desktop-panels', 'responsive-panels'),
-    flagKey(mobileCommandPaletteProbe, 'mobile-command-palette-probe', 'no-mobile-command-palette-probe'),
-    flagKey(mobileKeyboardShortcutProbe, 'mobile-keyboard-shortcut-probe', 'no-mobile-keyboard-shortcut-probe'),
-    flagKey(sourceSelectionProbe, 'source-selection-probe', 'no-source-selection-probe'),
-    flagKey(mobileActionAdapterProbe, 'mobile-action-adapter-probe', 'no-mobile-action-adapter-probe'),
-    flagKey(tableOfContentsProbe, 'table-of-contents-probe', 'no-table-of-contents-probe'),
-    tabletTransitionProbeKey(tabletTransitionProbe),
-    flagKey(workspacePersistenceProbe, 'workspace-persistence-probe', 'no-workspace-persistence-probe'),
-    flagKey(wysiwygAutocompleteProbe, 'wysiwyg-autocomplete-probe', 'no-wysiwyg-autocomplete-probe'),
-    flagKey(wysiwygExternalLinkProbe, 'wysiwyg-external-link-probe', 'no-wysiwyg-external-link-probe'),
-    flagKey(wysiwygFormatCommandProbe, 'wysiwyg-format-command-probe', 'no-wysiwyg-format-command-probe'),
-    flagKey(wysiwygInputTransformProbe, 'wysiwyg-input-transform-probe', 'no-wysiwyg-input-transform-probe'),
-    flagKey(wysiwygMarkdownBlockProbe, 'wysiwyg-markdown-block-probe', 'no-wysiwyg-markdown-block-probe'),
-    flagKey(wysiwygMathEditProbe, 'wysiwyg-math-edit-probe', 'no-wysiwyg-math-edit-probe'),
-    flagKey(wysiwygTableCommandMutationProbe, 'wysiwyg-table-command-mutation-probe', 'no-wysiwyg-table-command-mutation-probe'),
-    flagKey(wysiwygWikilinkInsertProbe, 'wysiwyg-wikilink-insert-probe', 'no-wysiwyg-wikilink-insert-probe'),
-    flagKey(wysiwygMutationProbe, 'wysiwyg-mutation-probe', 'no-wysiwyg-mutation-probe'),
-    flagKey(wysiwygPersistenceProbe, 'wysiwyg-persistence-probe', 'no-wysiwyg-persistence-probe'),
-    layoutProbeMode(layoutProbe),
-    sourceInfo?.kind ?? 'fixture',
-    sourceInfo?.alias ?? 'no-workspace-alias',
-    sourceInfo?.label ?? 'Tolaria Vault',
-    sourceInfo?.totalNotes ?? snapshot.notes.length,
-    firstNoteId(snapshot),
-    snapshot.selectedNoteId ?? 'no-selected-note',
-  ].join(':')
-}
-
-function flagKey(enabled: boolean, enabledKey: string, disabledKey: string): string {
-  return enabled ? enabledKey : disabledKey
-}
-
-function tabletTransitionProbeKey(mode: TabletTransitionProbeMode): string {
-  if (!mode) return 'no-tablet-transition-probe'
-  return `tablet-transition-probe-${mode}`
-}
-
-function scenarioIdOrDefault(scenarioId: string | null) {
-  return scenarioId ?? 'default'
-}
-
-function layoutProbeMode(layoutProbe: boolean) {
-  return layoutProbe ? 'probe' : 'view'
-}
-
 function initialCommandPaletteOpen(searchParams: URLSearchParams) {
   return searchParams.get('commandPalette') === '1'
-}
-
-function firstNoteId(snapshot: ReturnType<typeof readOnlyWorkspaceRepository.readSnapshot>) {
-  return snapshot.notes[0]?.id ?? 'empty'
 }
 
 function DevVaultStatusScreen({
@@ -615,7 +505,7 @@ function DevVaultStatusScreen({
     : mobileText('status.vault.reloading')
   const detail = state.status === 'error'
     ? state.message
-    : url ?? mobileText('status.vault.devBridgeMissingUrl')
+    : url ?? mobileText('status.vault.reloadingTooltip')
 
   return (
     <View style={devVaultStyles.root} testID="dev-vault-status">
@@ -704,9 +594,9 @@ function useMobileActionAdapterProbe({
 }
 
 function useMobileUiSearchParams() {
-  const [nativeSearch, setNativeSearch] = useState('')
-  const webSearch = currentWebSearch()
   const launchSearch = useMemo(() => nativeMobileLaunchSearch(), [])
+  const [nativeSearch, setNativeSearch] = useState(launchSearch)
+  const webSearch = currentWebSearch()
 
   useEffect(() => {
     let mounted = true
@@ -716,10 +606,14 @@ function useMobileUiSearchParams() {
 
     Linking.getInitialURL()
       .then((url) => {
-        if (mounted) setNativeSearch(searchFromUrl(url))
+        if (!mounted) return
+        setNativeSearch((current) => initialMobileUiNativeSearch({
+          initialUrlSearch: searchFromUrl(url),
+          launchSearch: current,
+        }))
       })
       .catch(() => {
-        if (mounted) setNativeSearch('')
+        // Keep native launch arguments when iOS cannot resolve its initial URL.
       })
 
     return () => {

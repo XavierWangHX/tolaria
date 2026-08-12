@@ -9,10 +9,22 @@ import type { NativeWorkspaceAccessModule } from './nativeWorkspaceAccess'
 
 describe('native workspace picker', () => {
   const managedLaputaRecord = {
+    index: {
+      directories: ['Writing'],
+      files: [{
+        absolutePath: 'file:///managed/Tolaria%20Vault/Writing/Launch%20note.md',
+        content: '# Launch note\n',
+        createdAt: null,
+        modifiedAt: 2,
+        relativePath: 'Writing/Launch note.md',
+        size: 14,
+      }],
+    },
     label: 'Laputa',
     uri: 'file:///managed/Tolaria%20Vault/',
   }
   const managedLaputaSelection = {
+    index: managedLaputaRecord.index,
     vaultAlias: 'laputa',
     vaultLabel: 'Laputa',
     vaultRootUri: managedLaputaRecord.uri,
@@ -92,12 +104,14 @@ describe('native workspace picker', () => {
     const module = accessModule({
       pickAndImportWorkspace: vi.fn().mockResolvedValue(null),
       restoreWorkspace: vi.fn().mockResolvedValue({
+        index: managedLaputaRecord.index,
         label: 'Work Vault',
         uri: 'file:///managed/Tolaria%20Vault/',
       }),
     })
 
     await expect(restoreNativeWorkspaceDirectory(module)).resolves.toEqual({
+      index: managedLaputaRecord.index,
       vaultAlias: 'work-vault',
       vaultLabel: 'Work Vault',
       vaultRootUri: 'file:///managed/Tolaria%20Vault/',

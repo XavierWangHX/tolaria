@@ -17,6 +17,11 @@ export type WorkspaceFileSystem = {
   writeTextFile: (rootUri: string, relativePath: string, content: string) => void
 }
 
+export type WorkspaceFileIndex = {
+  directories: string[]
+  files: LocalVaultFile[]
+}
+
 export function createFileSystemWorkspaceRepository(fileSystem: WorkspaceFileSystem): ReadOnlyWorkspaceRepository {
   return {
     persistWrites: async (writes, request) => {
@@ -40,9 +45,11 @@ export function createFileSystemWorkspaceRepository(fileSystem: WorkspaceFileSys
       const rootUri = workspaceRootUri(request)
       if (!rootUri) return emptyFileSystemSnapshot(request)
 
+      const index = request?.workspaceIndex
+
       return buildLocalVaultWorkspaceSnapshot({
-        files: fileSystem.readVaultFiles(rootUri),
-        folderPaths: fileSystem.readVaultDirectories(rootUri),
+        files: index?.files ?? fileSystem.readVaultFiles(rootUri),
+        folderPaths: index?.directories ?? fileSystem.readVaultDirectories(rootUri),
         vaultConfig: fileSystem.readVaultConfig?.(rootUri) ?? null,
         vaultAlias: request?.vaultAlias,
         vaultLabel: workspaceLabel(rootUri, request),

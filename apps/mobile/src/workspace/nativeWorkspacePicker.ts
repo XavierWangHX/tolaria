@@ -6,14 +6,17 @@ import {
   restoreNativeWorkspace,
   type NativeWorkspaceAccessModule,
 } from './nativeWorkspaceAccess'
+import type { NativeWorkspaceIndex } from './nativeWorkspaceAccess'
 
 export type NativeWorkspaceSelection = {
+  index?: NativeWorkspaceIndex
   vaultAlias: string | null
   vaultLabel: string
   vaultRootUri: string
 }
 
 type PickedWorkspaceDirectory = {
+  index?: NativeWorkspaceIndex
   name?: string | null
   uri?: string | null
 }
@@ -48,7 +51,7 @@ export async function pickNativeWorkspaceDirectoryWithDependencies(
   if (module?.pickAndImportWorkspace) {
     const imported = await pickAndImportNativeWorkspace(module)
     return imported
-      ? nativeWorkspaceSelectionFromDirectory({ name: imported.label, uri: imported.uri })
+      ? nativeWorkspaceSelectionFromDirectory({ index: imported.index, name: imported.label, uri: imported.uri })
       : null
   }
 
@@ -57,7 +60,7 @@ export async function pickNativeWorkspaceDirectoryWithDependencies(
 
   const imported = await importNativeWorkspace(picked.vaultRootUri, module)
   return imported
-    ? nativeWorkspaceSelectionFromDirectory({ name: imported.label, uri: imported.uri })
+    ? nativeWorkspaceSelectionFromDirectory({ index: imported.index, name: imported.label, uri: imported.uri })
     : picked
 }
 
@@ -66,7 +69,7 @@ export async function restoreNativeWorkspaceDirectory(
 ): Promise<NativeWorkspaceSelection | null> {
   const restored = await restoreNativeWorkspace(module)
   return restored
-    ? nativeWorkspaceSelectionFromDirectory({ name: restored.label, uri: restored.uri })
+    ? nativeWorkspaceSelectionFromDirectory({ index: restored.index, name: restored.label, uri: restored.uri })
     : null
 }
 
@@ -89,6 +92,7 @@ export function nativeWorkspaceSelectionFromDirectory(
 
   const vaultLabel = directory.name?.trim() || fallbackWorkspaceLabel(vaultRootUri)
   return {
+    ...(directory.index ? { index: directory.index } : {}),
     vaultAlias: mobileWorkspaceAlias({ label: vaultLabel, path: vaultRootUri }),
     vaultLabel,
     vaultRootUri,

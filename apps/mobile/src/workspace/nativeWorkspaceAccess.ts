@@ -1,10 +1,14 @@
+import type { WorkspaceFileIndex } from './fileSystemWorkspaceRepository'
+
 export type NativeWorkspaceAccessModule = {
-  importWorkspace: (uri: string) => Promise<NativeWorkspaceRecord | null>
-  pickAndImportWorkspace?: () => Promise<NativeWorkspaceRecord | null>
-  restoreWorkspace: () => Promise<NativeWorkspaceRecord | null>
+  importWorkspace: (uri: string) => Promise<NativeWorkspaceBridgeRecord | null>
+  pickAndImportWorkspace?: () => Promise<NativeWorkspaceBridgeRecord | null>
+  restoreWorkspace: () => Promise<NativeWorkspaceBridgeRecord | null>
 }
 
-export type NativeWorkspaceRecord = { label: string; uri: string }
+export type NativeWorkspaceIndex = WorkspaceFileIndex
+export type NativeWorkspaceRecord = { index?: NativeWorkspaceIndex; label: string; uri: string }
+export type NativeWorkspaceBridgeRecord = NativeWorkspaceRecord & { indexJson?: string }
 
 export function optionalNativeWorkspaceAccessModule(): NativeWorkspaceAccessModule | null {
   return null
@@ -47,8 +51,22 @@ export async function restoreNativeWorkspace(
   }
 }
 
-function normalizedWorkspaceRecord(record: NativeWorkspaceRecord | null): NativeWorkspaceRecord | null {
+function normalizedWorkspaceRecord(record: NativeWorkspaceBridgeRecord | null): NativeWorkspaceRecord | null {
   const uri = record?.uri.trim()
   const label = record?.label.trim()
-  return uri && label ? { label, uri } : null
+  if (!uri || !label) return null
+  const index = record?.index ?? parsedWorkspaceIndex(record?.indexJson)
+  return index ? { index, label, uri } : { label, uri }
+}
+
+function parsedWorkspaceIndex(value: string | undefined): NativeWorkspaceIndex | undefined {
+  if (!value) return undefined
+  try {
+    const candidate = JSON.parse(value) as Partial<NativeWorkspaceIndex>
+    return Array.isArray(candidate.directories) && Array.isArray(candidate.files)
+      ? { directories: candidate.directories, files: candidate.files }
+      : undefined
+  } catch {
+    return undefined
+  }
 }
