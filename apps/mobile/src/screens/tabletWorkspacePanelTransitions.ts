@@ -1,4 +1,5 @@
 import { desktopPanelParity } from '../ui/desktopParity'
+import type { TabletPanel } from './tabletWorkspaceTypes'
 
 export const tabletPanelTransitionDurationMs = 160
 
@@ -18,6 +19,51 @@ export function tabletLeftChromeWidth({
 
   return desktopPanelParity.noteListWidth
     + (sidebarVisible && !compactTablet ? desktopPanelParity.sidebarWidth : 0)
+}
+
+export function tabletLeftChromeLayout({
+  compactTablet,
+  noteListVisible,
+  previewVisible,
+  sidebarVisible,
+}: {
+  compactTablet: boolean
+  noteListVisible: boolean
+  previewVisible: boolean
+  sidebarVisible: boolean
+}) {
+  const showSidebar = !compactTablet && sidebarVisible
+  const rendered = showSidebar || noteListVisible
+  const targetSidebarVisible = !compactTablet
+  const renderSidebar = showSidebar || (previewVisible && targetSidebarVisible)
+  const renderNoteList = noteListVisible || previewVisible
+
+  return {
+    currentWidth: tabletLeftChromeWidth({
+      compactTablet,
+      noteListVisible: renderNoteList,
+      previewVisible,
+      sidebarVisible: renderSidebar,
+    }),
+    rendered,
+    renderNoteList,
+    renderSidebar,
+    revealWidth: tabletLeftChromeWidth({
+      compactTablet,
+      noteListVisible: true,
+      previewVisible: true,
+      sidebarVisible: targetSidebarVisible,
+    }),
+    showSidebar,
+  }
+}
+
+export function restoreTabletPanelVisibility(
+  restore: { noteList: boolean; sidebar: boolean } | null,
+  showPanel: (panel: TabletPanel) => void,
+) {
+  if (restore?.sidebar) showPanel('sidebar')
+  if (restore?.noteList) showPanel('noteList')
 }
 
 export function tabletLeftChromeDragOffset({

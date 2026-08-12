@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { desktopPanelParity } from '../ui/desktopParity'
 import {
+  restoreTabletPanelVisibility,
   tabletLeftChromeDragOffset,
+  tabletLeftChromeLayout,
   tabletLeftChromeWidth,
   tabletPropertiesDragOffset,
 } from './tabletWorkspacePanelTransitions'
@@ -30,6 +32,35 @@ describe('tabletLeftChromeWidth', () => {
       previewVisible: true,
       sidebarVisible: true,
     })).toBe(desktopPanelParity.sidebarWidth + desktopPanelParity.noteListWidth)
+  })
+})
+
+describe('tabletLeftChromeLayout', () => {
+  it('keeps note list rendering independent from persistent sidebar visibility', () => {
+    expect(tabletLeftChromeLayout({
+      compactTablet: false,
+      noteListVisible: true,
+      previewVisible: false,
+      sidebarVisible: false,
+    })).toEqual({
+      currentWidth: desktopPanelParity.noteListWidth,
+      rendered: true,
+      renderNoteList: true,
+      renderSidebar: false,
+      revealWidth: desktopPanelParity.sidebarWidth + desktopPanelParity.noteListWidth,
+      showSidebar: false,
+    })
+  })
+
+  it('restores exactly the panels that were visible before Properties opened', () => {
+    const restored: string[] = []
+
+    restoreTabletPanelVisibility(
+      { noteList: true, sidebar: false },
+      (panel) => restored.push(panel),
+    )
+
+    expect(restored).toEqual(['noteList'])
   })
 })
 

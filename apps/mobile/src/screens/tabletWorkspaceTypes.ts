@@ -112,6 +112,9 @@ export type TabletWorkspaceChromeProps = {
   commandPaletteProbe?: boolean
   keyboardShortcutProbe?: boolean
   defaultPropertiesVisible: boolean
+  defaultSidebarVisible?: boolean
+  exclusiveSidePanels?: boolean
+  propertiesReplaceSidebar?: boolean
   defaultNoteWidth: MobileNoteWidth | null
   editorBlocks: MobileEditorBlock[]
   editorBullets: string[]

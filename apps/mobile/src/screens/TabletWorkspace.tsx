@@ -13,7 +13,6 @@ import {
   type ReadOnlyWorkspaceRepository,
   type ReadOnlyWorkspaceRequest,
 } from '../workspace/readOnlyWorkspaceRepository'
-import { desktopPanelParity } from '../ui/desktopParity'
 import { mobileColors } from '../ui/tokens'
 import { MobileIconButton } from '../ui/MobileIconButton'
 import { mobileText } from '../i18n/mobileText'
@@ -35,19 +34,13 @@ import { TabletEditorPanel } from './TabletEditorPanel'
 import { tabletScreenModeForWindow } from './tabletWorkspaceScreenMode'
 import type {
   MobileActionSheetQaTarget,
-  TabletPanel,
   TabletTransitionProbeMode,
   TabletWorkspaceChromeProps,
 } from './tabletWorkspaceTypes'
 import { useTabletWorkspaceController } from './useTabletWorkspaceController'
 import { useMobileInspectorReferenceGroups } from './useMobileInspectorReferenceGroups'
 import { useInitialActionSheetQaTarget } from './useInitialActionSheetQaTarget'
-import {
-  tabletLeftChromeDragOffset,
-  tabletLeftChromeWidth,
-  tabletPanelTransitionDurationMs,
-  tabletPropertiesDragOffset,
-} from './tabletWorkspacePanelTransitions'
+import { useTabletPanelGestures } from './useTabletPanelGestures'
 
 export function TabletWorkspace({
   forceDesktopPanels = false,
@@ -105,16 +98,19 @@ export function TabletWorkspace({
   wysiwygMutationProbe?: boolean
 }) {
   const controller = useTabletWorkspaceController({ repository, repositoryRequest, snapshot })
-  const { compactTablet, defaultPropertiesVisible } = useTabletScreenMode(forceDesktopPanels)
+  const screenMode = useTabletScreenMode(forceDesktopPanels)
   useInitialActionSheetQaTarget(controller.onOpenActionSheetQaTarget, initialActionSheet)
 
   return (
     <View style={styles.shellRoot}>
       <TabletWorkspaceChrome
-        compactTablet={compactTablet}
+        compactTablet={screenMode.compactTablet}
         commandPaletteProbe={commandPaletteProbe}
         keyboardShortcutProbe={keyboardShortcutProbe}
-        defaultPropertiesVisible={defaultPropertiesVisible}
+        defaultPropertiesVisible={screenMode.defaultPropertiesVisible}
+        defaultSidebarVisible={screenMode.defaultSidebarVisible}
+        exclusiveSidePanels={screenMode.exclusiveSidePanels}
+        propertiesReplaceSidebar={screenMode.propertiesReplaceSidebar}
         initialCommandPaletteOpen={initialCommandPaletteOpen}
         initialEditorEditing={initialEditorEditing}
         initialEditorEditingMode={initialEditorEditingMode}
@@ -161,6 +157,9 @@ function TabletWorkspaceChrome(props: TabletWorkspaceChromeProps) {
     commandPaletteProbe,
     compactTablet,
     defaultPropertiesVisible,
+    defaultSidebarVisible = true,
+    exclusiveSidePanels = false,
+    propertiesReplaceSidebar = false,
     initialCommandPaletteOpen = false,
     onOpenNativeVault,
     onSelectNote,
@@ -170,7 +169,13 @@ function TabletWorkspaceChrome(props: TabletWorkspaceChromeProps) {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(initialCommandPaletteOpen)
   const [tableOfContentsTarget, setTableOfContentsTarget] = useState<TabletTableOfContentsTargetRequest | null>(null)
   const editorCommandRegistry = useMobileEditorCommandRegistry()
-  const gestures = useTabletPanelGestures(compactTablet, defaultPropertiesVisible)
+  const gestures = useTabletPanelGestures({
+    compactTablet,
+    defaultPropertiesVisible,
+    defaultSidebarVisible,
+    exclusiveSidePanels,
+    propertiesReplaceSidebar,
+  })
   const suggestionNotes = snapshot.allNotes ?? snapshot.notes
   const openCommandPalette = useCallback(() => setCommandPaletteOpen(true), [])
   const closeCommandPalette = useCallback(() => setCommandPaletteOpen(false), [])
@@ -849,234 +854,6 @@ function SwipeRail({
   swipeHandlers: ReturnType<typeof useHorizontalSwipe>
 }) {
   return <View {...swipeHandlers} style={[styles.swipeRail, edge === 'right' ? styles.swipeRailRight : null]} />
-}
-
-function useTabletPanelVisibility(defaultPropertiesVisible: boolean) {
-  const [panelOverrides, setPanelOverrides] = useState<Partial<Record<TabletPanel, boolean>>>({})
-  const setPanelVisibility = useCallback((panel: TabletPanel, visible: boolean) => {
-    setPanelOverrides((current) => current[panel] === visible ? current : { ...current, [panel]: visible })
-  }, [])
-
-  return {
-    hidePanel: useCallback((panel: TabletPanel) => setPanelVisibility(panel, false), [setPanelVisibility]),
-    noteListVisible: panelOverrides.noteList ?? true,
-    propertiesVisible: panelOverrides.properties ?? defaultPropertiesVisible,
-    showPanel: useCallback((panel: TabletPanel) => setPanelVisibility(panel, true), [setPanelVisibility]),
-    sidebarVisible: panelOverrides.sidebar ?? true,
-  }
-}
-
-function useTabletPanelGestures(compactTablet: boolean, defaultPropertiesVisible: boolean) {
-  const { hidePanel, noteListVisible, propertiesVisible, showPanel, sidebarVisible } = useTabletPanelVisibility(defaultPropertiesVisible)
-  const showSidebar = !compactTablet && sidebarVisible
-  const leftChromeRendered = showSidebar || noteListVisible
-  const [leftChromePreviewVisible, setLeftChromePreviewVisible] = useState(false)
-  const [propertiesPreviewVisible, setPropertiesPreviewVisible] = useState(false)
-  const [leftChromeOffset] = useState(() => new NativeAnimated.Value(0))
-  const [propertiesOffset] = useState(() => new NativeAnimated.Value(0))
-  const leftChromeTargetSidebarVisible = !compactTablet
-  const renderSidebar = showSidebar || (leftChromePreviewVisible && leftChromeTargetSidebarVisible)
-  const renderNoteList = noteListVisible || leftChromePreviewVisible
-  const leftChromeCurrentWidth = tabletLeftChromeWidth({
-    compactTablet,
-    noteListVisible: renderNoteList,
-    previewVisible: leftChromePreviewVisible,
-    sidebarVisible: renderSidebar,
-  })
-  const leftChromeRevealWidth = tabletLeftChromeWidth({
-    compactTablet,
-    noteListVisible: true,
-    previewVisible: true,
-    sidebarVisible: leftChromeTargetSidebarVisible,
-  })
-  const propertiesPanelWidth = desktopPanelParity.inspectorWidth
-  const animateLeftChrome = useCallback((toValue: number, onDone?: () => void) => {
-    leftChromeOffset.stopAnimation()
-    NativeAnimated.timing(leftChromeOffset, {
-      duration: tabletPanelTransitionDurationMs,
-      toValue,
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      if (finished) onDone?.()
-    })
-  }, [leftChromeOffset])
-  const animateProperties = useCallback((toValue: number, onDone?: () => void) => {
-    propertiesOffset.stopAnimation()
-    NativeAnimated.timing(propertiesOffset, {
-      duration: tabletPanelTransitionDurationMs,
-      toValue,
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      if (finished) onDone?.()
-    })
-  }, [propertiesOffset])
-  const showLeftChrome = useCallback((fromGesture = false) => {
-    setLeftChromePreviewVisible(true)
-    if (!fromGesture) leftChromeOffset.setValue(-leftChromeRevealWidth)
-    animateLeftChrome(0, () => {
-      if (!compactTablet) showPanel('sidebar')
-      showPanel('noteList')
-      setLeftChromePreviewVisible(false)
-      leftChromeOffset.setValue(0)
-    })
-  }, [animateLeftChrome, compactTablet, leftChromeOffset, leftChromeRevealWidth, showPanel])
-  const hideLeftChrome = useCallback(() => {
-    if (leftChromeCurrentWidth <= 0) return
-    animateLeftChrome(-leftChromeCurrentWidth, () => {
-      hidePanel('sidebar')
-      hidePanel('noteList')
-      setLeftChromePreviewVisible(false)
-      leftChromeOffset.setValue(0)
-    })
-  }, [animateLeftChrome, hidePanel, leftChromeCurrentWidth, leftChromeOffset])
-  const showProperties = useCallback((fromGesture = false) => {
-    setPropertiesPreviewVisible(true)
-    if (!fromGesture) propertiesOffset.setValue(propertiesPanelWidth)
-    animateProperties(0, () => {
-      showPanel('properties')
-      setPropertiesPreviewVisible(false)
-      propertiesOffset.setValue(0)
-    })
-  }, [animateProperties, propertiesOffset, propertiesPanelWidth, showPanel])
-  const hideProperties = useCallback(() => {
-    animateProperties(propertiesPanelWidth, () => {
-      hidePanel('properties')
-      setPropertiesPreviewVisible(false)
-      propertiesOffset.setValue(0)
-    })
-  }, [animateProperties, hidePanel, propertiesOffset, propertiesPanelWidth])
-  const handleLeftChromeProgress = useCallback(({ dx }: { dx: number }) => {
-    const width = leftChromeRendered ? leftChromeCurrentWidth : leftChromeRevealWidth
-    if (width <= 0) return
-    if (!leftChromeRendered && dx > 0) setLeftChromePreviewVisible(true)
-    leftChromeOffset.stopAnimation()
-    leftChromeOffset.setValue(tabletLeftChromeDragOffset({
-      dx,
-      visible: leftChromeRendered,
-      width,
-    }))
-  }, [leftChromeCurrentWidth, leftChromeOffset, leftChromeRendered, leftChromeRevealWidth])
-  const handleLeftChromeEnd = useCallback((committed: boolean) => {
-    if (committed) return
-    if (leftChromeRendered) {
-      animateLeftChrome(0)
-      return
-    }
-
-    animateLeftChrome(-leftChromeRevealWidth, () => {
-      setLeftChromePreviewVisible(false)
-      leftChromeOffset.setValue(0)
-    })
-  }, [animateLeftChrome, leftChromeOffset, leftChromeRendered, leftChromeRevealWidth])
-  const handlePropertiesProgress = useCallback(({ dx }: { dx: number }) => {
-    if (!propertiesVisible && dx < 0) setPropertiesPreviewVisible(true)
-    propertiesOffset.stopAnimation()
-    propertiesOffset.setValue(tabletPropertiesDragOffset({
-      dx,
-      visible: propertiesVisible,
-      width: propertiesPanelWidth,
-    }))
-  }, [propertiesOffset, propertiesPanelWidth, propertiesVisible])
-  const handlePropertiesEnd = useCallback((committed: boolean) => {
-    if (committed) return
-    if (propertiesVisible) {
-      animateProperties(0)
-      return
-    }
-
-    animateProperties(propertiesPanelWidth, () => {
-      setPropertiesPreviewVisible(false)
-      propertiesOffset.setValue(0)
-    })
-  }, [animateProperties, propertiesOffset, propertiesPanelWidth, propertiesVisible])
-
-  useEffect(() => () => {
-    leftChromeOffset.stopAnimation()
-    propertiesOffset.stopAnimation()
-  }, [leftChromeOffset, propertiesOffset])
-
-  const leftChromeMotionStyle = useMemo(() => ({
-    marginRight: leftChromeOffset,
-    transform: [{ translateX: leftChromeOffset }],
-  }), [leftChromeOffset])
-  const propertiesMotionStyle = useMemo(() => ({
-    marginLeft: NativeAnimated.multiply(propertiesOffset, -1),
-    transform: [{ translateX: propertiesOffset }],
-  }), [propertiesOffset])
-
-  return {
-    showAllPanels: useCallback(() => {
-      showPanel('sidebar')
-      showPanel('noteList')
-      showPanel('properties')
-    }, [showPanel]),
-    showEditorList: useCallback(() => {
-      hidePanel('sidebar')
-      showPanel('noteList')
-      hidePanel('properties')
-    }, [hidePanel, showPanel]),
-    showEditorOnly: useCallback(() => {
-      hidePanel('sidebar')
-      hidePanel('noteList')
-      hidePanel('properties')
-      setLeftChromePreviewVisible(false)
-      setPropertiesPreviewVisible(false)
-      leftChromeOffset.setValue(0)
-      propertiesOffset.setValue(0)
-    }, [hidePanel, leftChromeOffset, propertiesOffset]),
-    toggleSidebar: useCallback(() => {
-      if (showSidebar) hidePanel('sidebar')
-      else showPanel('sidebar')
-    }, [hidePanel, showPanel, showSidebar]),
-    toggleSidebarAndNoteList: useCallback(() => {
-      if (showSidebar || noteListVisible) {
-        hideLeftChrome()
-        return
-      }
-      showLeftChrome()
-    }, [hideLeftChrome, noteListVisible, showLeftChrome, showSidebar]),
-    hideLeftChrome,
-    showLeftChrome: useCallback(() => showLeftChrome(), [showLeftChrome]),
-    leftChromeMotionStyle,
-    leftChromeRevealSwipe: useHorizontalSwipe({
-      disabled: leftChromeRendered,
-      onSwipeEnd: handleLeftChromeEnd,
-      onSwipeProgress: handleLeftChromeProgress,
-      onSwipeRight: () => showLeftChrome(true),
-    }),
-    leftChromeSwipe: useHorizontalSwipe({
-      disabled: !leftChromeRendered,
-      onSwipeEnd: handleLeftChromeEnd,
-      onSwipeLeft: hideLeftChrome,
-      onSwipeProgress: handleLeftChromeProgress,
-    }),
-    leftChromeVisible: leftChromeRendered || leftChromePreviewVisible,
-    noteListVisible,
-    propertiesMotionStyle,
-    hideProperties,
-    propertiesPanelVisible: propertiesVisible || propertiesPreviewVisible,
-    showProperties: useCallback(() => showProperties(), [showProperties]),
-    toggleProperties: useCallback(() => {
-      if (propertiesVisible) hideProperties()
-      else showProperties()
-    }, [hideProperties, propertiesVisible, showProperties]),
-    propertiesRevealSwipe: useHorizontalSwipe({
-      disabled: propertiesVisible,
-      onSwipeEnd: handlePropertiesEnd,
-      onSwipeLeft: () => showProperties(true),
-      onSwipeProgress: handlePropertiesProgress,
-    }),
-    propertiesSwipe: useHorizontalSwipe({
-      disabled: !propertiesVisible,
-      onSwipeEnd: handlePropertiesEnd,
-      onSwipeProgress: handlePropertiesProgress,
-      onSwipeRight: hideProperties,
-    }),
-    propertiesVisible,
-    renderNoteList,
-    renderSidebar,
-    showSidebar,
-  }
 }
 
 const styles = StyleSheet.create({
