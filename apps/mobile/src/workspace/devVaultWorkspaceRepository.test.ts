@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { workspaceScenarioForId } from '../fixtures/workspaceFixtures'
-import {
-  createDevVaultWorkspaceRepository,
-  fetchDevVaultWorkspaceState,
-} from './devVaultWorkspaceRepository'
+import { createDevVaultWorkspaceRepository, fetchDevVaultWorkspaceState } from './devVaultWorkspaceRepository'
 
 describe('dev vault workspace repository', () => {
   afterEach(() => {
@@ -22,21 +19,49 @@ describe('dev vault workspace repository', () => {
     expect(repository.readSnapshot({ source: 'dev' })).toBe(snapshot)
   })
 
-  it('loads a snapshot payload from the local bridge snapshot endpoint', async () => {
+  it('loads the workspace index without eagerly transferring every note body', async () => {
     const snapshot = workspaceScenarioForId('default')
-    const fetch = vi.fn().mockResolvedValue(okJsonResponse({
-      noteContents: { 'note.md': '# Loaded\n' },
-      snapshot,
-    }))
+    const fetch = vi.fn().mockResolvedValue(okJsonResponse({ snapshot }))
     vi.stubGlobal('fetch', fetch)
 
     await expect(fetchDevVaultWorkspaceState('http://127.0.0.1:8765')).resolves.toMatchObject({
-      noteContents: { 'note.md': '# Loaded\n' },
+      contentBaseUrl: 'http://127.0.0.1:8765',
+      noteContents: {},
       snapshot,
     })
-    expect(fetch).toHaveBeenCalledWith('http://127.0.0.1:8765/snapshot', { signal: undefined })
+    expect(fetchRequestUrl(fetch)).toBe('http://127.0.0.1:8765/snapshot')
+  })
+
+  it('hydrates and caches a selected note through the bridge content endpoint', async () => {
+    const snapshot = workspaceScenarioForId('default')
+    const note = { ...snapshot.notes[0], path: 'Singers guide.md', rawContent: undefined }
+    const fetch = vi.fn().mockResolvedValue(okJsonResponse({ content: '# Loaded on demand\n' }))
+    vi.stubGlobal('fetch', fetch)
+    const repository = createDevVaultWorkspaceRepository({
+      contentBaseUrl: 'http://127.0.0.1:8765',
+      noteContents: {},
+      snapshot,
+    })
+
+    await expect(repository.readNoteContent(note, { source: 'dev' })).resolves.toBe('# Loaded on demand\n')
+    await expect(repository.readNoteContent(note, { source: 'dev' })).resolves.toBe('# Loaded on demand\n')
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(fetchRequestUrl(fetch)).toBe('http://127.0.0.1:8765/content?path=Singers+guide.md')
+  })
+
+  it('rejects public bridge URLs before issuing a request', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+
+    await expect(fetchDevVaultWorkspaceState('https://example.com')).rejects.toThrow('private network')
+    expect(fetch).not.toHaveBeenCalled()
   })
 })
+
+function fetchRequestUrl(fetch: ReturnType<typeof vi.fn>): string {
+  const request = fetch.mock.calls[0]?.[0]
+  return request instanceof Request ? request.url : String(request)
+}
 
 function okJsonResponse(payload: unknown) {
   return {

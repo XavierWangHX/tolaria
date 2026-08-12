@@ -2,7 +2,11 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { access, readdir, readFile, stat } from 'node:fs/promises'
 import { basename, join, relative } from 'node:path'
 import { performance } from 'node:perf_hooks'
-import { buildLocalVaultWorkspaceSnapshot, mobileFileKindForPath, type LocalVaultFile } from '../src/workspace/localVaultSnapshot'
+import {
+  buildLocalVaultWorkspaceSnapshot,
+  mobileFileKindForPath,
+  type LocalVaultFile,
+} from '../src/workspace/localVaultSnapshot'
 
 type AbsolutePath = string
 type DirectoryName = string
@@ -41,36 +45,67 @@ async function main() {
   })
 }
 
-async function handleRequest(
-  request: IncomingMessage,
-  response: ServerResponse,
-  vaultPath: VaultPath,
-) {
+async function handleRequest(request: IncomingMessage, response: ServerResponse, vaultPath: VaultPath) {
   withCors(response)
-  if (request.method === 'OPTIONS') {
-    response.writeHead(204)
-    response.end()
-    return
-  }
+  if (request.method === 'OPTIONS') return writeOptionsResponse(response)
+  if (request.method === 'GET') return handleGetRequest(request, response, vaultPath)
+  writeJson(response, 404, { error: 'Not found' })
+}
 
-  const path = request.url?.split('?')[0] ?? '/'
-  if (request.method === 'GET' && path === '/health') {
+async function handleGetRequest(request: IncomingMessage, response: ServerResponse, vaultPath: VaultPath) {
+  const requestUrl = new URL(request.url ?? '/', 'http://localhost')
+  const path = requestUrl.pathname
+  if (path === '/health') {
     writeJson(response, 200, { ok: true })
     return
   }
-  if (request.method === 'GET' && path === '/snapshot') {
+  if (path === '/snapshot') {
     await writeSnapshot(response, vaultPath)
+    return
+  }
+  if (path === '/content') {
+    await writeContent(response, vaultPath, requestUrl.searchParams.get('path'))
     return
   }
 
   writeJson(response, 404, { error: 'Not found' })
 }
 
+function writeOptionsResponse(response: ServerResponse) {
+  response.writeHead(204)
+  response.end()
+}
+
 async function writeSnapshot(response: ServerResponse, vaultPath: VaultPath) {
   try {
-    writeJson(response, 200, await localVaultSnapshotState(vaultPath))
+    writeJson(response, 200, publicSnapshotState(await localVaultSnapshotState(vaultPath)))
   } catch (error) {
     writeJson(response, 500, { error: errorMessage(error) })
+  }
+}
+
+async function writeContent(response: ServerResponse, vaultPath: VaultPath, relativePath: string | null) {
+  try {
+    const state = await localVaultSnapshotState(vaultPath)
+    const content = relativePath ? state.noteContents[relativePath] : undefined
+    if (content === undefined) {
+      writeJson(response, 404, { error: 'Note content not found' })
+      return
+    }
+    writeJson(response, 200, { content })
+  } catch (error) {
+    writeJson(response, 500, { error: errorMessage(error) })
+  }
+}
+
+function publicSnapshotState(state: LocalVaultSnapshotState) {
+  return {
+    buildDurationMs: state.buildDurationMs,
+    fileCount: state.fileCount,
+    readDurationMs: state.readDurationMs,
+    snapshot: state.snapshot,
+    totalDurationMs: state.totalDurationMs,
+    vaultPath: state.vaultPath,
   }
 }
 
@@ -117,9 +152,7 @@ async function buildLocalVaultSnapshotState(vaultPath: VaultPath): Promise<Local
 
 function noteContentMap(files: LocalVaultFile[]): Record<string, string> {
   return Object.fromEntries(
-    files
-      .filter((file) => file.fileKind !== 'binary')
-      .map((file) => [file.relativePath, file.content]),
+    files.filter((file) => file.fileKind !== 'binary').map((file) => [file.relativePath, file.content]),
   )
 }
 
@@ -129,7 +162,7 @@ async function readLocalVaultFiles(vaultPath: VaultPath): Promise<LocalVaultFile
 
   for (let index = 0; index < paths.length; index += 64) {
     const chunk = paths.slice(index, index + 64)
-    files.push(...await Promise.all(chunk.map((absolutePath) => readLocalVaultFile(vaultPath, absolutePath))))
+    files.push(...(await Promise.all(chunk.map((absolutePath) => readLocalVaultFile(vaultPath, absolutePath)))))
   }
 
   return files
@@ -149,7 +182,7 @@ async function listWorkspaceFiles(
   for (const entry of entries) {
     const absolutePath = join(currentPath, entry.name)
     if (entry.isDirectory() && shouldReadDirectory(entry.name)) {
-      files.push(...await listWorkspaceFiles(vaultPath, absolutePath))
+      files.push(...(await listWorkspaceFiles(vaultPath, absolutePath)))
     } else if (entry.isFile() && shouldReadFile(relativePath(vaultPath, absolutePath))) {
       files.push(absolutePath)
     }
@@ -170,7 +203,7 @@ async function listWorkspaceDirectories(
 
     const absolutePath = join(currentPath, entry.name)
     directories.push(relativePath(vaultPath, absolutePath))
-    directories.push(...await listWorkspaceDirectories(vaultPath, absolutePath))
+    directories.push(...(await listWorkspaceDirectories(vaultPath, absolutePath)))
   }
 
   return directories
