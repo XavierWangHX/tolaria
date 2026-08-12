@@ -37,6 +37,33 @@ describe('tablet workspace edit selection', () => {
     expect(selectedNoteIds).toEqual(['Tolaria/Mobile UI/brand-new-target.md'])
   })
 
+  it('returns to the default note list when the current section excludes the newly created note', () => {
+    const snapshot = workspaceScenarioForId('default')
+    const edit: MobileWorkspaceEdit = { title: '', type: 'createNote' }
+    const result = applyMobileWorkspaceEditWithWrites(snapshot, edit)
+    const selectedNoteIds: Array<string | null> = []
+    let selectedDefault = false
+
+    selectAfterWorkspaceEdit({
+      edit,
+      navigation: inertNavigation({
+        selectDefaultSidebarItem: () => { selectedDefault = true },
+        sidebarSelection: {
+          count: '0',
+          id: 'archive',
+          kind: 'item',
+          label: 'Archive',
+          sectionId: 'primary',
+        },
+      }),
+      result,
+      setSelectedNoteId: (noteId) => selectedNoteIds.push(noteId),
+    })
+
+    expect(selectedDefault).toBe(true)
+    expect(selectedNoteIds).toEqual([result.snapshot.selectedNoteId])
+  })
+
   it('selects the next rendered Inbox note after organizing the selected note', () => {
     const base = workspaceScenarioForId('default')
     const first = inboxNote(base.notes[0], {

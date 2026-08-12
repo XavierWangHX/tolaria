@@ -60,9 +60,16 @@ export function selectAfterWorkspaceEdit({
   selectAfterPathMutation(context)
 }
 
-function selectAfterCreatedNote({ edit, result, setSelectedNoteId }: EditSelectionContext) {
+function selectAfterCreatedNote({ edit, navigation, result, setSelectedNoteId }: EditSelectionContext) {
   if (edit.type !== 'createNote' && edit.type !== 'createRelationshipTarget') return false
-  if (result.snapshot.selectedNoteId) setSelectedNoteId(result.snapshot.selectedNoteId)
+  const createdNoteId = result.snapshot.selectedNoteId
+  if (!createdNoteId) return true
+
+  const visibleNotes = notesForSidebarSelection(result.snapshot, navigation.sidebarSelection)
+  if (!visibleNotes.some((note) => note.id === createdNoteId)) {
+    navigation.selectDefaultSidebarItem(result.snapshot)
+  }
+  setSelectedNoteId(createdNoteId)
   return true
 }
 
