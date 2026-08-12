@@ -104,9 +104,12 @@ export function resolveMobileUiWorkspace({
   const repository = useDevVault
     ? createDevVaultWorkspaceRepository(devVaultState)
     : probeRepository
+  const request = persistenceProbeEnabled
+    ? { ...repositoryRequest, workspaceIndex: null }
+    : repositoryRequest
 
   return {
-    baseSnapshot: repository.readSnapshot(repositoryRequest),
+    baseSnapshot: repository.readSnapshot(request),
     repository,
   }
 }

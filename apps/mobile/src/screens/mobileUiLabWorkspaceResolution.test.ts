@@ -37,13 +37,19 @@ describe('resolveMobileUiWorkspace', () => {
       },
       persistenceProbeEnabled: true,
       probeRepository,
-      repositoryRequest: { source: 'native' },
+      repositoryRequest: {
+        source: 'native',
+        workspaceIndex: {
+          directories: [],
+          files: [],
+        },
+      },
       source: 'dev',
     })
 
     expect(result.repository).toBe(probeRepository)
     expect(result.baseSnapshot).toBe(probeSnapshot)
-    expect(readSnapshot).toHaveBeenCalledWith({ source: 'native' })
+    expect(readSnapshot).toHaveBeenCalledWith({ source: 'native', workspaceIndex: null })
   })
 
   it('marks the development vault bridge snapshot as read-only', () => {
