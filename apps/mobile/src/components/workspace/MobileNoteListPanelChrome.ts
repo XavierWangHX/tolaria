@@ -1,6 +1,16 @@
+import type { MobileNoteListFilter } from '../../workspace/mobileNoteFilters'
+
 export const mobileNoteListToolbarChrome = {
   actionTestIds: ['note-list-search-action', 'note-list-create-action'],
 } as const
+
+export const mobileNoteListFilterOptions: ReadonlyArray<{
+  labelKey: 'noteList.filter.archived' | 'noteList.filter.open'
+  value: MobileNoteListFilter
+}> = [
+  { labelKey: 'noteList.filter.open', value: 'open' },
+  { labelKey: 'noteList.filter.archived', value: 'archived' },
+]
 
 const emptyStateChrome = {
   emptyVault: {

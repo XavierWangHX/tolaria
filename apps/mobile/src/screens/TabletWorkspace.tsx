@@ -457,6 +457,9 @@ function TabletNoteListHost(props: TabletPanelHostProps) {
         layoutProbe={layoutProbe}
         leading={<TabletNoteListSidebarAction gestures={gestures} />}
         neighborhood={noteListNeighborhood}
+        noteListFilter={props.noteListFilter}
+        noteListFilterCounts={props.noteListFilterCounts}
+        noteListFilterVisible={props.noteListFilterVisible}
         notes={notes}
         propertyDisplayModes={snapshot.vaultConfig?.propertyDisplayModes}
         searchQuery={searchQuery || undefined}
@@ -467,6 +470,7 @@ function TabletNoteListHost(props: TabletPanelHostProps) {
         onOpenCreateNote={onOpenCreateNote}
         onOpenSearch={onOpenSearch}
         onOpenVault={onOpenNativeVault}
+        onNoteListFilterChange={props.onNoteListFilterChange}
         onSelectNote={onSelectNote}
       />
     </View>

@@ -772,6 +772,9 @@ function PhoneNoteListScreen({
           </View>
         )}
         neighborhood={controller.noteListNeighborhood}
+        noteListFilter={controller.noteListFilter}
+        noteListFilterCounts={controller.noteListFilterCounts}
+        noteListFilterVisible={controller.noteListFilterVisible}
         notes={controller.notes}
         propertyDisplayModes={controller.snapshot.vaultConfig?.propertyDisplayModes}
         searchQuery={controller.searchQuery || undefined}
@@ -781,6 +784,7 @@ function PhoneNoteListScreen({
         typeDefinitions={controller.snapshot.typeDefinitions}
         onOpenCreateNote={controller.onOpenCreateNote}
         onOpenSearch={controller.onOpenSearch}
+        onNoteListFilterChange={controller.onNoteListFilterChange}
         onSelectNote={openEditor}
       />
     </View>

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { FolderOpen, MagnifyingGlass, Plus } from 'phosphor-react-native'
 import { FlatList, StyleSheet, View } from 'react-native'
+import { Button } from '../ui/button'
 import { Text } from '../ui/text'
 import { mobileCopy, mobileText } from '../../i18n/mobileText'
 import { MobileLayoutProbeReadout } from '../../qa/MobileLayoutProbeReadout'
@@ -11,14 +12,16 @@ import { MobileIconButton } from '../../ui/MobileIconButton'
 import { MobileListRow } from '../../ui/MobileListRow'
 import { MobilePanel, MobileToolbar, MobileToolbarSpacer, MobileToolbarTitle } from '../../ui/MobilePanel'
 import { desktopPanelParity, desktopToolbarActionParity } from '../../ui/desktopParity'
-import { mobileColors, mobileSpace, mobileType } from '../../ui/tokens'
+import { mobileColors, mobileRadius, mobileSpace, mobileType } from '../../ui/tokens'
 import { mobileNoteRowChips } from '../../workspace/mobileNoteDisplay'
+import type { MobileNoteListFilter } from '../../workspace/mobileNoteFilters'
 import type { MobileNeighborhood, MobileNeighborhoodGroup } from '../../workspace/mobileNeighborhood'
 import type { MobileNote, MobilePropertyDisplayMode, MobileTypeDefinitions } from '../../workspace/mobileWorkspaceModel'
 import { MobileNoteListBulkActionBar } from './MobileNoteListBulkActionBar'
 import { MobileTypeIcon } from './MobileWorkspaceIcons'
 import {
   mobileNoteListEmptyStateChrome,
+  mobileNoteListFilterOptions,
   mobileNoteListToolbarChrome,
 } from './MobileNoteListPanelChrome'
 import {
@@ -49,10 +52,14 @@ type MobileNoteListPanelProps = {
   leading?: ReactNode
   layoutProbe?: boolean
   neighborhood?: MobileNeighborhood | null
+  noteListFilter?: MobileNoteListFilter
+  noteListFilterCounts?: Record<MobileNoteListFilter, number>
+  noteListFilterVisible?: boolean
   notes: MobileNote[]
   onOpenCreateNote: () => void
   onOpenSearch: () => void
   onOpenVault?: () => void
+  onNoteListFilterChange?: (filter: MobileNoteListFilter) => void
   onSelectNote: (noteId: string) => void
   propertyDisplayModes?: Record<string, MobilePropertyDisplayMode> | null
   searchQuery?: string
@@ -72,10 +79,14 @@ export function MobileNoteListPanel(props: MobileNoteListPanelProps) {
     leading,
     layoutProbe: layoutProbeEnabled = false,
     neighborhood = null,
+    noteListFilter = 'open',
+    noteListFilterCounts = { archived: 0, open: 0 },
+    noteListFilterVisible = false,
     notes,
     onOpenCreateNote,
     onOpenSearch,
     onOpenVault,
+    onNoteListFilterChange,
     onSelectNote,
     propertyDisplayModes,
     searchQuery,
@@ -124,8 +135,57 @@ export function MobileNoteListPanel(props: MobileNoteListPanelProps) {
         typeDefinitions={typeDefinitions}
       />
       <BulkSelectionBar bulkActions={bulkActions} bulkSelection={bulkSelection} />
+      {noteListFilterVisible && onNoteListFilterChange ? (
+        <NoteListFilterPills
+          active={noteListFilter}
+          counts={noteListFilterCounts}
+          onChange={onNoteListFilterChange}
+        />
+      ) : null}
       {layoutProbeEnabled ? <MobileLayoutProbeReadout metrics={layoutProbe.metrics} testID="note-list-layout-metrics" /> : null}
     </MobilePanel>
+  )
+}
+
+function NoteListFilterPills({
+  active,
+  counts,
+  onChange,
+}: {
+  active: MobileNoteListFilter
+  counts: Record<MobileNoteListFilter, number>
+  onChange: (filter: MobileNoteListFilter) => void
+}) {
+  return (
+    <View accessibilityRole="tablist" style={styles.filterBar} testID="note-list-filter-pills">
+      {mobileNoteListFilterOptions.map((option) => {
+        const selected = active === option.value
+        return (
+          <Button
+            accessibilityLabel={mobileText(option.labelKey)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            className="shadow-none"
+            key={option.value}
+            size="sm"
+            style={[
+              styles.filterPill,
+              selected ? styles.filterPillSelected : null,
+            ]}
+            testID={`filter-pill-${option.value}`}
+            variant="ghost"
+            onPress={() => onChange(option.value)}
+          >
+            <Text style={[styles.filterPillText, selected ? styles.filterPillTextSelected : null]}>
+              {mobileText(option.labelKey)}
+            </Text>
+            <Text style={[styles.filterPillCount, selected ? styles.filterPillCountSelected : null]}>
+              {counts[option.value].toLocaleString()}
+            </Text>
+          </Button>
+        )
+      })}
+    </View>
   )
 }
 
@@ -603,6 +663,44 @@ const styles = StyleSheet.create({
     fontSize: mobileType.title,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  filterBar: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: mobileSpace.sm,
+    borderTopColor: mobileColors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: mobileSpace.lg,
+    paddingVertical: mobileSpace.md,
+  },
+  filterPill: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    minHeight: 28,
+    borderRadius: mobileRadius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  filterPillSelected: {
+    backgroundColor: mobileColors.control,
+  },
+  filterPillText: {
+    color: mobileColors.textMuted,
+    fontSize: mobileType.caption,
+    fontWeight: '500',
+  },
+  filterPillTextSelected: {
+    color: mobileColors.text,
+  },
+  filterPillCount: {
+    color: mobileColors.textFaint,
+    fontSize: mobileType.micro,
+    fontVariant: ['tabular-nums'],
+  },
+  filterPillCountSelected: {
+    color: mobileColors.textMuted,
   },
   groupCount: {
     color: mobileColors.textMuted,

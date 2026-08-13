@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   mobileNoteListEmptyStateChrome,
+  mobileNoteListFilterOptions,
   mobileNoteListToolbarChrome,
 } from './MobileNoteListPanelChrome'
 
@@ -14,6 +15,13 @@ describe('mobile note-list panel chrome', () => {
 
   it('does not reserve toolbar chrome for open/archive selectors', () => {
     expect(mobileNoteListToolbarChrome.actionTestIds.join(' ')).not.toMatch(/open|archive|filter|selector/u)
+  })
+
+  it('keeps the bottom filter pills aligned with desktop labels and order', () => {
+    expect(mobileNoteListFilterOptions).toEqual([
+      { labelKey: 'noteList.filter.open', value: 'open' },
+      { labelKey: 'noteList.filter.archived', value: 'archived' },
+    ])
   })
 
   it('offers the vault picker only for an empty workspace, not empty filters', () => {
