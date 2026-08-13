@@ -8,6 +8,7 @@ import { MobileSyncStatusBar } from '../components/workspace/MobileSyncStatusBar
 import { MobileWorkspaceActionSheet } from '../components/workspace/MobileWorkspaceActionSheet'
 import { MobileWorkspaceSidebar } from '../components/workspace/MobileWorkspaceSidebar'
 import type { MobileNote, MobileWorkspaceSnapshot } from '../workspace/mobileWorkspaceModel'
+import { mobileWorkspaceHasNoVault } from '../workspace/mobileWorkspaceEmptyState'
 import {
   fixtureReadOnlyWorkspaceRepository,
   type ReadOnlyWorkspaceRepository,
@@ -453,7 +454,7 @@ function TabletNoteListHost(props: TabletPanelHostProps) {
         compact={compactTablet}
         bulkActions={tabletNoteListBulkActions(props)}
         displayPropertyKeys={noteListProperties}
-        emptyVault={snapshot.source?.totalNotes === 0}
+        emptyVault={mobileWorkspaceHasNoVault(snapshot)}
         layoutProbe={layoutProbe}
         leading={<TabletNoteListSidebarAction gestures={gestures} />}
         neighborhood={noteListNeighborhood}

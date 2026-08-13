@@ -20,6 +20,7 @@ import { useMobileEditorCommandRegistry, type RegisterMobileEditorCommands } fro
 import { mobileNoteIdForWikilinkTarget } from '../workspace/mobileWikilinks'
 import { useMobileWorkspaceKeyboardShortcuts } from '../workspace/mobileWorkspaceKeyboardShortcuts'
 import type { MobileNote, MobileWorkspaceSnapshot } from '../workspace/mobileWorkspaceModel'
+import { mobileWorkspaceHasNoVault } from '../workspace/mobileWorkspaceEmptyState'
 import type { MobileTableOfContentsTarget } from '../workspace/mobileTableOfContents'
 import {
   fixtureReadOnlyWorkspaceRepository,
@@ -761,6 +762,7 @@ function PhoneNoteListScreen({
           onOrganize: controller.onBulkOrganizeNotes,
         }}
         displayPropertyKeys={controller.noteListProperties}
+        emptyVault={mobileWorkspaceHasNoVault(controller.snapshot)}
         fullWidth
         layoutProbe={options.layoutProbe}
         leading={(
@@ -784,6 +786,7 @@ function PhoneNoteListScreen({
         typeDefinitions={controller.snapshot.typeDefinitions}
         onOpenCreateNote={controller.onOpenCreateNote}
         onOpenSearch={controller.onOpenSearch}
+        onOpenVault={controller.onOpenCreateNote}
         onNoteListFilterChange={controller.onNoteListFilterChange}
         onSelectNote={openEditor}
       />
