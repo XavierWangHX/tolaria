@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { desktopPanelParity } from '../ui/desktopParity'
 import {
   restoreTabletPanelVisibility,
+  tabletLeftChromeRendered,
   tabletLeftChromeDragOffset,
   tabletLeftChromeLayout,
   tabletLeftChromeWidth,
@@ -61,6 +62,24 @@ describe('tabletLeftChromeLayout', () => {
     )
 
     expect(restored).toEqual(['noteList'])
+  })
+})
+
+describe('tabletLeftChromeRendered', () => {
+  it('removes left chrome while Properties replaces it on narrow iPads', () => {
+    expect(tabletLeftChromeRendered({
+      leftChromeVisible: true,
+      propertiesPanelVisible: true,
+      propertiesReplaceSidebar: true,
+    })).toBe(false)
+  })
+
+  it('keeps left chrome when the viewport can show Properties beside it', () => {
+    expect(tabletLeftChromeRendered({
+      leftChromeVisible: true,
+      propertiesPanelVisible: true,
+      propertiesReplaceSidebar: false,
+    })).toBe(true)
   })
 })
 

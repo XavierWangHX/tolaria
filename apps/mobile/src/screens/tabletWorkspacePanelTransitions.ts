@@ -58,6 +58,18 @@ export function tabletLeftChromeLayout({
   }
 }
 
+export function tabletLeftChromeRendered({
+  leftChromeVisible,
+  propertiesPanelVisible,
+  propertiesReplaceSidebar,
+}: {
+  leftChromeVisible: boolean
+  propertiesPanelVisible: boolean
+  propertiesReplaceSidebar: boolean
+}) {
+  return leftChromeVisible && !(propertiesPanelVisible && propertiesReplaceSidebar)
+}
+
 export function restoreTabletPanelVisibility(
   restore: { noteList: boolean; sidebar: boolean } | null,
   showPanel: (panel: TabletPanel) => void,
@@ -66,32 +78,32 @@ export function restoreTabletPanelVisibility(
   if (restore?.noteList) showPanel('noteList')
 }
 
-export function tabletLeftChromeDragOffset({
+export const tabletLeftChromeDragOffset = createTabletEdgePanelDragOffset(-1)
+export const tabletPropertiesDragOffset = createTabletEdgePanelDragOffset(
+  1,
+  desktopPanelParity.inspectorWidth,
+)
+
+function createTabletEdgePanelDragOffset(direction: -1 | 1, defaultWidth?: number) {
+  return ({ dx, visible, width = defaultWidth ?? 0 }: { dx: number; visible: boolean; width?: number }) =>
+    tabletEdgePanelDragOffset({ direction, dx, visible, width })
+}
+
+function tabletEdgePanelDragOffset({
+  direction,
   dx,
   visible,
   width,
 }: {
+  direction: -1 | 1
   dx: number
   visible: boolean
   width: number
 }) {
   if (width <= 0) return 0
-  if (visible) return clamp(dx, -width, 0)
-  return clamp(-width + dx, -width, 0)
-}
-
-export function tabletPropertiesDragOffset({
-  dx,
-  visible,
-  width = desktopPanelParity.inspectorWidth,
-}: {
-  dx: number
-  visible: boolean
-  width?: number
-}) {
-  if (width <= 0) return 0
-  if (visible) return clamp(dx, 0, width)
-  return clamp(width + dx, 0, width)
+  const distanceFromVisible = visible ? direction * dx : width + direction * dx
+  const offset = direction * clamp(distanceFromVisible, 0, width)
+  return offset === 0 ? 0 : offset
 }
 
 function clamp(value: number, min: number, max: number) {

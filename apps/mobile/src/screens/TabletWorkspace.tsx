@@ -15,6 +15,7 @@ import {
   type ReadOnlyWorkspaceRequest,
 } from '../workspace/readOnlyWorkspaceRepository'
 import { mobileColors } from '../ui/tokens'
+import { desktopPanelParity } from '../ui/desktopParity'
 import { MobileIconButton } from '../ui/MobileIconButton'
 import { mobileText } from '../i18n/mobileText'
 import { useHorizontalSwipe } from '../ui/useHorizontalSwipe'
@@ -32,6 +33,7 @@ import {
   type MobileTableOfContentsTarget,
 } from '../workspace/mobileTableOfContents'
 import { TabletEditorPanel } from './TabletEditorPanel'
+import { tabletLeftChromeRendered } from './tabletWorkspacePanelTransitions'
 import { tabletScreenModeForWindow } from './tabletWorkspaceScreenMode'
 import type {
   MobileActionSheetQaTarget,
@@ -243,7 +245,16 @@ function TabletWorkspaceChrome(props: TabletWorkspaceChromeProps) {
 
   return (
     <View style={styles.shell}>
-      <TabletLeftChromeHost {...props} gestures={gestures} onOpenCommandPalette={openCommandPalette} />
+      <TabletLeftChromeHost
+        {...props}
+        gestures={gestures}
+        onOpenCommandPalette={openCommandPalette}
+        rendered={tabletLeftChromeRendered({
+          leftChromeVisible: gestures.leftChromeVisible,
+          propertiesPanelVisible: gestures.propertiesPanelVisible,
+          propertiesReplaceSidebar,
+        })}
+      />
       <TabletEditorPanelHost
         {...props}
         gestures={gestures}
@@ -352,8 +363,10 @@ function adjacentVisibleNoteId(
   return notes[nextIndex]?.id ?? null
 }
 
-function TabletLeftChromeHost(props: TabletSidebarHostProps) {
-  const { gestures } = props
+function TabletLeftChromeHost(props: TabletSidebarHostProps & { rendered: boolean }) {
+  const { gestures, rendered } = props
+
+  if (!rendered) return null
 
   if (!gestures.leftChromeVisible) {
     return (
@@ -970,6 +983,7 @@ const styles = StyleSheet.create({
   panelHost: {
     alignSelf: 'stretch',
     height: '100%',
+    width: desktopPanelParity.inspectorWidth,
   },
   leftChromeHost: {
     alignSelf: 'stretch',
