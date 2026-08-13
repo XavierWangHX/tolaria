@@ -112,6 +112,28 @@ type: Journal
     })
   })
 
+  it('preserves an authored relationship label when its target is missing', () => {
+    const snapshot = buildLocalVaultWorkspaceSnapshot({
+      files: [vaultFile('source.md', `---
+type: Goal
+Belongs to:
+  - "[[goal/2021-learn-new-things|Learn new things]]"
+---
+# Source
+`)],
+      vaultLabel: 'Laputa',
+      vaultPath: '/Users/luca/Laputa',
+    })
+
+    expect(snapshot.notes[0]?.relationships[0]?.values[0]).toMatchObject({
+      id: undefined,
+      ref: '[[goal/2021-learn-new-things|Learn new things]]',
+      title: 'Learn new things',
+      type: 'Note',
+      typeTone: 'gray',
+    })
+  })
+
   it('annotates notes with the workspace alias and resolves alias-prefixed relationship refs', () => {
     const snapshot = buildLocalVaultWorkspaceSnapshot({
       files: [

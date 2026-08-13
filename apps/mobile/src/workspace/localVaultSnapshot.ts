@@ -569,13 +569,14 @@ function relationshipLabel(label: RelationshipLabel): string | undefined {
 }
 
 function relationshipValue(rawValue: WikilinkTarget, resolveRelationship: RelationshipResolver): MobileRelationshipValue {
-  const target = wikilinkTarget(rawValue)
+  const link = parsedWikilink(rawValue)
+  const target = link.target
   const entry = resolveRelationship(target)
 
   return {
     id: entry?.id,
     ref: rawValue,
-    title: entry?.title ?? target,
+    title: entry?.title ?? link.display,
     type: entry?.type ?? 'Note',
     typeTone: entry?.typeTone ?? 'gray',
   }
@@ -637,8 +638,13 @@ function addRelationshipResolverTarget(
 }
 
 function wikilinkTarget(value: string): WikilinkTarget {
-  const match = value.match(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/)
-  return (match?.[1] ?? value).trim()
+  return parsedWikilink(value).target
+}
+
+function parsedWikilink(value: string): { display: string; target: WikilinkTarget } {
+  const match = value.match(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/)
+  const target = (match?.[1] ?? value).trim()
+  return { display: (match?.[2] ?? target).trim(), target }
 }
 
 function toneFromDesktopColor(color: string | null, type: NoteTypeName): MobileTone {
