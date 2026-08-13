@@ -642,7 +642,7 @@ function TabletPropertiesPanelHost(props: TabletPropertiesPanelHostProps) {
   return (
     <NativeAnimated.View
       {...webSwipeHandlers(gestures.propertiesSwipe)}
-      style={[styles.panelHost, gestures.propertiesMotionStyle]}
+      style={[styles.panelHost, styles.propertiesPanelHost, gestures.propertiesMotionStyle]}
     >
       <MobilePropertiesPanel {...propertiesPanelProps(props, referenceGroups)} />
       <SwipeRail
@@ -982,6 +982,8 @@ const styles = StyleSheet.create({
   panelHost: {
     alignSelf: 'stretch',
     height: '100%',
+  },
+  propertiesPanelHost: {
     width: desktopPanelParity.inspectorWidth,
   },
   leftChromeHost: {
