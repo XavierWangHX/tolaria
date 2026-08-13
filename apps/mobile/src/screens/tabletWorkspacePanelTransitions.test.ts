@@ -68,7 +68,6 @@ describe('tabletLeftChromeLayout', () => {
 describe('tabletLeftChromeRendered', () => {
   it('removes left chrome while Properties replaces it on narrow iPads', () => {
     expect(tabletLeftChromeRendered({
-      leftChromeVisible: true,
       propertiesPanelVisible: true,
       propertiesReplaceSidebar: true,
     })).toBe(false)
@@ -76,8 +75,14 @@ describe('tabletLeftChromeRendered', () => {
 
   it('keeps left chrome when the viewport can show Properties beside it', () => {
     expect(tabletLeftChromeRendered({
-      leftChromeVisible: true,
       propertiesPanelVisible: true,
+      propertiesReplaceSidebar: false,
+    })).toBe(true)
+  })
+
+  it('keeps the reveal rail mounted when left chrome is hidden', () => {
+    expect(tabletLeftChromeRendered({
+      propertiesPanelVisible: false,
       propertiesReplaceSidebar: false,
     })).toBe(true)
   })

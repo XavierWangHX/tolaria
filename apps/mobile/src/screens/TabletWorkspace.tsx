@@ -250,7 +250,6 @@ function TabletWorkspaceChrome(props: TabletWorkspaceChromeProps) {
         gestures={gestures}
         onOpenCommandPalette={openCommandPalette}
         rendered={tabletLeftChromeRendered({
-          leftChromeVisible: gestures.leftChromeVisible,
           propertiesPanelVisible: gestures.propertiesPanelVisible,
           propertiesReplaceSidebar,
         })}

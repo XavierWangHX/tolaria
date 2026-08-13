@@ -59,15 +59,13 @@ export function tabletLeftChromeLayout({
 }
 
 export function tabletLeftChromeRendered({
-  leftChromeVisible,
   propertiesPanelVisible,
   propertiesReplaceSidebar,
 }: {
-  leftChromeVisible: boolean
   propertiesPanelVisible: boolean
   propertiesReplaceSidebar: boolean
 }) {
-  return leftChromeVisible && !(propertiesPanelVisible && propertiesReplaceSidebar)
+  return !(propertiesPanelVisible && propertiesReplaceSidebar)
 }
 
 export function restoreTabletPanelVisibility(
