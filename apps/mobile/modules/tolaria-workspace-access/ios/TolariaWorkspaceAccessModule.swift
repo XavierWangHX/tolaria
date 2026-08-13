@@ -105,26 +105,12 @@ public class TolariaWorkspaceAccessModule: Module {
       return
     }
 
-    let picker = UIDocumentPickerViewController(
-      forOpeningContentTypes: [.folder],
-      asCopy: false
-    )
+    let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder])
     let delegate = WorkspacePickerDelegate(
       onCancel: { [weak self] in self?.cancelWorkspacePicker() },
       onPick: { [weak self] source in self?.importPickedWorkspace(source) }
     )
     picker.allowsMultipleSelection = false
-    if UIDevice.current.userInterfaceIdiom == .pad {
-      let viewFrame = currentViewController.view.frame
-      picker.popoverPresentationController?.sourceRect = CGRect(
-        x: viewFrame.midX,
-        y: viewFrame.maxY,
-        width: 0,
-        height: 0
-      )
-      picker.popoverPresentationController?.sourceView = currentViewController.view
-      picker.modalPresentationStyle = .pageSheet
-    }
     picker.delegate = delegate
     picker.presentationController?.delegate = delegate
 
