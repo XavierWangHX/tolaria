@@ -26,6 +26,7 @@ import {
 
 const defaultLogWindow = '5m'
 const defaultExpoGoBundleId = 'host.exp.Exponent'
+const defaultTolariaBundleId = 'com.tolaria.mobile.dev'
 const nativeQaPollIntervalMs = 1000
 const nativeQaPollTimeoutMs = 60000
 
@@ -178,9 +179,9 @@ async function openFreshProbeUrl(device, url, waitMs) {
     return
   }
 
+  terminateTolaria(device)
+  await sleep(500)
   const runId = Date.now().toString()
-  run('xcrun', ['simctl', 'openurl', device, appendQueryParam(withLayoutProbe(url, false), 'qaRun', `${runId}-reset`)])
-  await sleep(Math.min(waitMs, 750))
   run('xcrun', ['simctl', 'openurl', device, appendQueryParam(withLayoutProbe(url, true), 'qaRun', runId)])
   await sleep(waitMs)
 }
@@ -192,6 +193,11 @@ function isExpoGoUrl(url) {
 
 function terminateExpoGo(device) {
   const bundleId = process.env.MOBILE_QA_EXPO_GO_BUNDLE_ID ?? defaultExpoGoBundleId
+  tryRun('xcrun', ['simctl', 'terminate', device, bundleId])
+}
+
+function terminateTolaria(device) {
+  const bundleId = process.env.MOBILE_QA_BUNDLE_ID ?? defaultTolariaBundleId
   tryRun('xcrun', ['simctl', 'terminate', device, bundleId])
 }
 
