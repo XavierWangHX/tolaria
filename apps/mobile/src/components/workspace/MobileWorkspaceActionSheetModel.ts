@@ -62,6 +62,18 @@ export const mobileWorkspaceFormSheetAutoFocus = false
 export const mobileWorkspaceFormSheetMaxSuggestions = 3
 export const mobileWorkspaceRelationshipTargetMaxSuggestions = 2
 
+export const mobileWorkspacePropertyActionTestIds = {
+  cancel: 'workspace-property-cancel-action',
+  delete: 'workspace-property-delete-action',
+  save: 'workspace-property-save-action',
+} as const
+
+export const mobileWorkspaceRelationshipActionTestIds = {
+  cancel: 'workspace-relationship-cancel-action',
+  createTarget: 'workspace-relationship-create-target',
+  save: 'workspace-relationship-save-action',
+} as const
+
 export function mobilePropertyDeleteActionVisible({
   editingProperty,
   hasSelectedNote,

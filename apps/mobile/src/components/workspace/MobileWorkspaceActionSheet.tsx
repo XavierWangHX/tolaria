@@ -57,6 +57,8 @@ import {
   mobileActionSheetLayoutContract,
   mobilePropertyDeleteActionVisible,
   mobileSingleTextFieldSubmitDisabled,
+  mobileWorkspacePropertyActionTestIds,
+  mobileWorkspaceRelationshipActionTestIds,
   mobileWorkspaceRelationshipTargetMaxSuggestions,
   mobileWorkspaceFormSheetAutoFocus,
   mobileWorkspaceFormSheetMaxSuggestions,
@@ -862,14 +864,14 @@ function AddPropertyContent(props: MobileWorkspaceActionSheetProps) {
         }) && selectedNote ? (
           <MobileButton
             label={mobileText('inspector.properties.deleteProperty')}
-            testID="workspace-property-delete-action"
+            testID={mobileWorkspacePropertyActionTestIds.delete}
             tone="danger"
             variant="ghost"
             onPress={() => onDeleteProperty(selectedNote.id, propertyName)}
           />
         ) : null}
-        <MobileButton label={mobileText('common.cancel')} variant="ghost" onPress={onClose} />
-        <MobileButton disabled={!canSaveProperty} label={mobileText('common.save')} variant="primary" onPress={onSaveProperty} />
+        <MobileButton label={mobileText('common.cancel')} testID={mobileWorkspacePropertyActionTestIds.cancel} variant="ghost" onPress={onClose} />
+        <MobileButton disabled={!canSaveProperty} label={mobileText('common.save')} testID={mobileWorkspacePropertyActionTestIds.save} variant="primary" onPress={onSaveProperty} />
       </SheetFooter>
     </ScrollView>
   )
@@ -951,8 +953,8 @@ function AddRelationshipContent({
         <CreateRelationshipTargetRow title={createTargetTitle} onPress={onCreateRelationshipTarget} />
       ) : null}
       <SheetFooter>
-        <MobileButton label={mobileText('common.cancel')} variant="ghost" onPress={onClose} />
-        <MobileButton disabled={relationshipName.trim().length === 0 || relationshipNoteTitle.trim().length === 0} label={mobileText('inspector.relationship.add')} variant="primary" onPress={onSaveRelationship} />
+        <MobileButton label={mobileText('common.cancel')} testID={mobileWorkspaceRelationshipActionTestIds.cancel} variant="ghost" onPress={onClose} />
+        <MobileButton disabled={relationshipName.trim().length === 0 || relationshipNoteTitle.trim().length === 0} label={mobileText('inspector.relationship.add')} testID={mobileWorkspaceRelationshipActionTestIds.save} variant="primary" onPress={onSaveRelationship} />
       </SheetFooter>
     </ScrollView>
   )
@@ -970,7 +972,7 @@ function CreateRelationshipTargetRow({
       accessibilityLabel={`${mobileText('inspector.relationship.createAndOpen')} ${title}`}
       accessibilityRole="button"
       style={styles.suggestionPressable}
-      testID="workspace-relationship-create-target"
+      testID={mobileWorkspaceRelationshipActionTestIds.createTarget}
       onPress={onPress}
     >
       {({ pressed }) => (

@@ -7,6 +7,8 @@ import {
   mobileWorkspaceRelationshipTargetMaxSuggestions,
   mobileActionSheetLongFormHeight,
   mobilePropertyDeleteActionVisible,
+  mobileWorkspacePropertyActionTestIds,
+  mobileWorkspaceRelationshipActionTestIds,
   mobileWorkspaceFormSheetAutoFocus,
   mobileWorkspaceFormSheetMaxSuggestions,
   mobileWorkspaceActionGroupLayoutContract,
@@ -75,6 +77,19 @@ describe('mobile workspace action sheet', () => {
   it('bounds form sheet suggestions so the footer remains reachable on first open', () => {
     expect(mobileWorkspaceFormSheetMaxSuggestions).toBe(3)
     expect(mobileWorkspaceRelationshipTargetMaxSuggestions).toBe(2)
+  })
+
+  it('keeps property and relationship form actions addressable in native QA', () => {
+    expect(mobileWorkspacePropertyActionTestIds).toEqual({
+      cancel: 'workspace-property-cancel-action',
+      delete: 'workspace-property-delete-action',
+      save: 'workspace-property-save-action',
+    })
+    expect(mobileWorkspaceRelationshipActionTestIds).toEqual({
+      cancel: 'workspace-relationship-cancel-action',
+      createTarget: 'workspace-relationship-create-target',
+      save: 'workspace-relationship-save-action',
+    })
   })
 
   it('keeps nested form sections grouped with explicit native spacing', () => {
