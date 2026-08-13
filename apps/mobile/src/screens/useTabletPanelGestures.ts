@@ -195,6 +195,7 @@ function usePropertiesPanelDrag({
     transform: [{ translateX: motion.offset }],
   }), [motion.offset])
   const swipeConfig = {
+    captureOnStart: true,
     disabled: !propertiesVisible,
     onSwipeEnd: handleEnd,
     onSwipeProgress: handleProgress,
@@ -353,6 +354,7 @@ function useLeftChromeDrag({
       onSwipeRight: () => actions.showLeftChrome(true),
     }),
     swipe: useHorizontalSwipe({
+      captureOnStart: true,
       disabled: !rendered,
       onSwipeEnd: handleEnd,
       onSwipeLeft: actions.hideLeftChrome,
