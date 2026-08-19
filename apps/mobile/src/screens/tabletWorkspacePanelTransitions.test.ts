@@ -2,12 +2,79 @@ import { describe, expect, it } from 'vitest'
 import { desktopPanelParity } from '../ui/desktopParity'
 import {
   restoreTabletPanelVisibility,
+  tabletLeftPanelDragOffset,
+  tabletLeftPanelStageAfterDrag,
+  tabletLeftPanelStageOffset,
   tabletLeftChromeRendered,
   tabletLeftChromeDragOffset,
   tabletLeftChromeLayout,
   tabletLeftChromeWidth,
+  tabletPropertiesVisibleAfterDrag,
   tabletPropertiesDragOffset,
+  tabletWorkspaceDragMode,
 } from './tabletWorkspacePanelTransitions'
+
+describe('tablet left-panel direct manipulation', () => {
+  it('uses desktop widths as sequential all, list, and editor snap points', () => {
+    expect(tabletLeftPanelStageOffset('all', false)).toBe(0)
+    expect(tabletLeftPanelStageOffset('list', false)).toBe(-desktopPanelParity.sidebarWidth)
+    expect(tabletLeftPanelStageOffset('editor', false)).toBe(
+      -(desktopPanelParity.sidebarWidth + desktopPanelParity.noteListWidth),
+    )
+  })
+
+  it('moves through both left panels in one uninterrupted drag', () => {
+    expect(tabletLeftPanelDragOffset({ compactTablet: false, dx: -180, stage: 'all' })).toBe(-180)
+    expect(tabletLeftPanelDragOffset({ compactTablet: false, dx: -420, stage: 'all' })).toBe(-420)
+    expect(tabletLeftPanelDragOffset({ compactTablet: false, dx: -900, stage: 'all' })).toBe(-600)
+  })
+
+  it('settles to the nearest sequential state and honors a deliberate flick', () => {
+    expect(tabletLeftPanelStageAfterDrag({ compactTablet: false, dx: -180, stage: 'all', vx: 0 })).toBe('list')
+    expect(tabletLeftPanelStageAfterDrag({ compactTablet: false, dx: -520, stage: 'all', vx: 0 })).toBe('editor')
+    expect(tabletLeftPanelStageAfterDrag({ compactTablet: false, dx: -520, stage: 'all', vx: -1 })).toBe('editor')
+    expect(tabletLeftPanelStageAfterDrag({ compactTablet: false, dx: 190, stage: 'editor', vx: 0 })).toBe('list')
+    expect(tabletLeftPanelStageAfterDrag({ compactTablet: false, dx: -30, stage: 'all', vx: -0.7 })).toBe('list')
+  })
+
+  it('omits the sidebar stage on compact iPads', () => {
+    expect(tabletLeftPanelStageOffset('all', true)).toBe(0)
+    expect(tabletLeftPanelStageOffset('list', true)).toBe(0)
+    expect(tabletLeftPanelStageOffset('editor', true)).toBe(-desktopPanelParity.noteListWidth)
+    expect(tabletLeftPanelStageAfterDrag({ compactTablet: true, dx: -200, stage: 'list', vx: 0 })).toBe('editor')
+  })
+})
+
+describe('tablet workspace drag ownership', () => {
+  it('routes ordinary drags anywhere in the workspace to the left panel sequence', () => {
+    expect(tabletWorkspaceDragMode({
+      dx: -40,
+      propertiesVisible: false,
+      screenWidth: 1366,
+      x0: 500,
+    })).toBe('left')
+  })
+
+  it('reserves an inward drag from the right edge for Properties', () => {
+    expect(tabletWorkspaceDragMode({
+      dx: -40,
+      propertiesVisible: false,
+      screenWidth: 1366,
+      x0: 1350,
+    })).toBe('properties')
+    expect(tabletPropertiesVisibleAfterDrag({ dx: -170, visible: false, vx: 0 })).toBe(true)
+  })
+
+  it('routes a rightward drag to visible Properties so it can be dismissed', () => {
+    expect(tabletWorkspaceDragMode({
+      dx: 40,
+      propertiesVisible: true,
+      screenWidth: 1366,
+      x0: 900,
+    })).toBe('properties')
+    expect(tabletPropertiesVisibleAfterDrag({ dx: 170, visible: true, vx: 0 })).toBe(false)
+  })
+})
 
 describe('tabletLeftChromeWidth', () => {
   it('moves the sidebar and note list together on regular iPad layouts', () => {

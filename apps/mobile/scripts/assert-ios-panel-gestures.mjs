@@ -6,16 +6,13 @@ import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { simulatorWindowTargetPoint } from '../src/qa/nativeSimulatorWindowGeometry.ts'
-import {
-  mobileLaunchSearchArgumentName,
-  mobileLaunchSearchEnvironmentName,
-} from '../src/native/mobileNativeKeyCommandsContract.ts'
 
 const defaultBundleId = 'com.tolaria.mobile.dev'
-const leftHideRail = 'tablet-left-chrome-hide-rail'
-const leftRevealRail = 'tablet-left-chrome-reveal-rail'
-const propertiesHideRail = 'tablet-properties-hide-rail'
-const propertiesRevealRail = 'tablet-properties-reveal-rail'
+const editorPanel = 'editor-panel'
+const noteListPanel = 'note-list-panel'
+const propertiesAction = 'editor-properties-action'
+const propertiesPanel = 'properties-panel'
+const sidebarPanel = 'workspace-sidebar-panel'
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -24,7 +21,10 @@ function run(command, args, options = {}) {
     ...options,
   })
   if (result.status === 0) return result.stdout
-  const detail = result.stderr.trim() || result.stdout.trim() || `exit ${result.status}`
+  const detail = result.stderr?.trim()
+    || result.stdout?.trim()
+    || result.error?.message
+    || `exit ${result.status}`
   throw new Error(`${command} ${args.join(' ')} failed: ${detail}`)
 }
 
@@ -91,11 +91,16 @@ function findElement(nodes, testId) {
 }
 
 function assertElementAbsent(nodes, testId) {
+  const count = elementCount(nodes, testId)
+  if (count !== 0) throw new Error(`Expected ${testId} to be absent, found ${count}`)
+}
+
+function elementCount(nodes, testId) {
   let count = 0
   visitNodes(nodes, (node) => {
     if (node.AXUniqueId === testId) count += 1
   })
-  if (count !== 0) throw new Error(`Expected ${testId} to be absent, found ${count}`)
+  return count
 }
 
 function logicalScreen(nodes) {
@@ -185,41 +190,61 @@ function dragSource() {
   `
 }
 
-function dragRail({ deltaX, device, name, testId }) {
+function dragElement({ anchorX = 0.5, deltaX, device, name, testId }) {
   const ui = describeUi(device)
   const screen = logicalScreen(ui)
   const surface = simulatorSurface(name)
   const target = findElement(ui, testId).frame
-  const start = simulatorWindowTargetPoint({ logicalScreen: screen, simulatorSurface: surface, target })
-  const destination = {
-    ...target,
-    x: Math.max(screen.x, Math.min(screen.x + screen.width - target.width, target.x + deltaX)),
-  }
-  const end = simulatorWindowTargetPoint({ logicalScreen: screen, simulatorSurface: surface, target: destination })
+  const startTarget = pointTarget({
+    screen,
+    x: target.x + target.width * anchorX,
+    y: target.y + target.height / 2,
+  })
+  const endTarget = pointTarget({ screen, x: startTarget.x + deltaX, y: startTarget.y })
+  const start = simulatorWindowTargetPoint({ logicalScreen: screen, simulatorSurface: surface, target: startTarget })
+  const end = simulatorWindowTargetPoint({ logicalScreen: screen, simulatorSurface: surface, target: endTarget })
   run(dragBinaryPath(), [String(start.x), String(start.y), String(end.x), String(end.y)])
+}
+
+function dragFromRightEdge({ deltaX, device, name }) {
+  const ui = describeUi(device)
+  const screen = logicalScreen(ui)
+  const surface = simulatorSurface(name)
+  const editor = findElement(ui, editorPanel).frame
+  const startTarget = pointTarget({
+    screen,
+    x: screen.x + screen.width - 2,
+    y: editor.y + editor.height / 2,
+  })
+  const endTarget = pointTarget({ screen, x: startTarget.x + deltaX, y: startTarget.y })
+  const start = simulatorWindowTargetPoint({ logicalScreen: screen, simulatorSurface: surface, target: startTarget })
+  const end = simulatorWindowTargetPoint({ logicalScreen: screen, simulatorSurface: surface, target: endTarget })
+  run(dragBinaryPath(), [String(start.x), String(start.y), String(end.x), String(end.y)])
+}
+
+function pointTarget({ screen, x, y }) {
+  return {
+    height: 2,
+    width: 2,
+    x: Math.max(screen.x, Math.min(screen.x + screen.width - 2, x)),
+    y: Math.max(screen.y, Math.min(screen.y + screen.height - 2, y)),
+  }
 }
 
 function launchFixture(device, bundleId) {
   const search = '?source=fixture&tabletPanels=all&selectedNote=workflow-orchestration&qaRun=panel-gestures'
-  run('xcrun', [
-    'simctl',
-    'launch',
-    '--terminate-running-process',
-    device,
-    bundleId,
-    mobileLaunchSearchArgumentName,
-    search,
-  ], {
-    env: { ...process.env, [`SIMCTL_CHILD_${mobileLaunchSearchEnvironmentName}`]: search },
-  })
+  spawnSync('xcrun', ['simctl', 'terminate', device, bundleId])
+  run('xcrun', ['simctl', 'openurl', device, `exp://127.0.0.1:8081/--/${search}`])
 }
 
-async function assertTransition({ deltaX, device, expected, hidden, name, rail }) {
-  dragRail({ deltaX, device, name, testId: rail })
-  await new Promise((resolveDelay) => setTimeout(resolveDelay, 2200))
+async function waitForAnimation() {
+  await new Promise((resolveDelay) => setTimeout(resolveDelay, 900))
+}
+
+function assertPanels(device, { hidden = [], visible = [] }) {
   const ui = describeUi(device)
-  findElement(ui, expected)
-  assertElementAbsent(ui, hidden)
+  visible.forEach((testId) => findElement(ui, testId))
+  hidden.forEach((testId) => assertElementAbsent(ui, testId))
 }
 
 async function main() {
@@ -230,17 +255,42 @@ async function main() {
 
   launchFixture(device, bundleId)
   await new Promise((resolveDelay) => setTimeout(resolveDelay, 6000))
-  findElement(describeUi(device), leftHideRail)
+  if (elementCount(describeUi(device), propertiesPanel) === 0) {
+    dragElement({ deltaX: 0, device, name, testId: propertiesAction })
+    await waitForAnimation()
+  }
+  assertPanels(device, { visible: [sidebarPanel, noteListPanel, editorPanel, propertiesPanel, propertiesAction] })
 
-  await assertTransition({ deltaX: -240, device, expected: leftRevealRail, hidden: leftHideRail, name, rail: leftHideRail })
-  await assertTransition({ deltaX: 240, device, expected: leftHideRail, hidden: leftRevealRail, name, rail: leftRevealRail })
-  await assertTransition({ deltaX: 240, device, expected: propertiesRevealRail, hidden: propertiesHideRail, name, rail: propertiesHideRail })
-  await assertTransition({ deltaX: -240, device, expected: propertiesHideRail, hidden: propertiesRevealRail, name, rail: propertiesRevealRail })
+  dragElement({ deltaX: 0, device, name, testId: propertiesAction })
+  await waitForAnimation()
+  assertPanels(device, { hidden: [propertiesPanel], visible: [sidebarPanel, noteListPanel, editorPanel] })
+  dragElement({ deltaX: 0, device, name, testId: propertiesAction })
+  await waitForAnimation()
+  assertPanels(device, { visible: [propertiesPanel] })
+  dragElement({ deltaX: 0, device, name, testId: propertiesAction })
+  await waitForAnimation()
 
-  console.log(JSON.stringify({ bundleId, device, status: 'passed', transitions: 4 }))
+  dragElement({ anchorX: 0.9, deltaX: -520, device, name, testId: noteListPanel })
+  await waitForAnimation()
+  assertPanels(device, { hidden: [sidebarPanel, noteListPanel], visible: [editorPanel] })
+  dragElement({ anchorX: 0.1, deltaX: 250, device, name, testId: editorPanel })
+  await waitForAnimation()
+  assertPanels(device, { hidden: [sidebarPanel], visible: [noteListPanel, editorPanel] })
+  dragElement({ anchorX: 0.2, deltaX: 220, device, name, testId: noteListPanel })
+  await waitForAnimation()
+  assertPanels(device, { visible: [sidebarPanel, noteListPanel, editorPanel] })
+
+  dragFromRightEdge({ deltaX: -200, device, name })
+  await waitForAnimation()
+  assertPanels(device, { visible: [propertiesPanel] })
+  dragElement({ anchorX: 0.1, deltaX: 220, device, name, testId: propertiesPanel })
+  await waitForAnimation()
+  assertPanels(device, { hidden: [propertiesPanel], visible: [editorPanel] })
+
+  console.log(JSON.stringify({ bundleId, device, status: 'passed', transitions: 8 }))
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error))
+  console.error(error instanceof Error ? error.stack ?? error.message : String(error))
   process.exit(1)
 })

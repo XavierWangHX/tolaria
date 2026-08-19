@@ -1,15 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated as NativeAnimated } from 'react-native'
-import { desktopPanelParity } from '../ui/desktopParity'
-import { useHorizontalSwipe } from '../ui/useHorizontalSwipe'
+import { useCallback, useRef, useState } from 'react'
+import { PanResponder, type PanResponderGestureState, useWindowDimensions } from 'react-native'
 import {
-  restoreTabletPanelVisibility,
-  tabletLeftChromeDragOffset,
-  tabletLeftChromeLayout,
-  tabletPanelTransitionDurationMs,
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  type SharedValue,
+} from 'react-native-reanimated'
+import { desktopPanelParity } from '../ui/desktopParity'
+import { horizontalSwipeCapturesMovement } from '../ui/horizontalSwipePolicy'
+import {
+  tabletLeftPanelDragOffset,
+  tabletLeftPanelStageAfterDrag,
+  tabletLeftPanelStageOffset,
   tabletPropertiesDragOffset,
+  tabletPropertiesVisibleAfterDrag,
+  tabletWorkspaceDragMode,
+  type TabletLeftPanelStage,
+  type TabletWorkspaceDragMode,
 } from './tabletWorkspacePanelTransitions'
-import type { TabletPanel } from './tabletWorkspaceTypes'
 
 export type TabletPanelGestureOptions = {
   compactTablet: boolean
@@ -19,412 +28,361 @@ export type TabletPanelGestureOptions = {
   propertiesReplaceSidebar: boolean
 }
 
-type PanelVisibilityDefaults = Pick<
-  TabletPanelGestureOptions,
-  'defaultPropertiesVisible' | 'defaultSidebarVisible'
->
+const panelSpring = {
+  damping: 26,
+  mass: 0.8,
+  overshootClamping: true,
+  stiffness: 280,
+}
 
-function useTabletPanelVisibility(defaults: PanelVisibilityDefaults) {
-  const [panelOverrides, setPanelOverrides] = useState<Partial<Record<TabletPanel, boolean>>>({})
-  const setPanelVisibility = useCallback((panel: TabletPanel, visible: boolean) => {
-    setPanelOverrides((current) => current[panel] === visible ? current : { ...current, [panel]: visible })
-  }, [])
+function setDirectOffset(offset: SharedValue<number>, value: number) {
+  cancelAnimation(offset)
+  offset.value = value
+}
+
+function settleOffset(offset: SharedValue<number>, value: number) {
+  offset.value = withSpring(value, panelSpring)
+}
+
+function normalizedLeftStage(stage: TabletLeftPanelStage, compactTablet: boolean) {
+  return compactTablet && stage === 'all' ? 'list' : stage
+}
+
+function useLeftPanelMotion(initialStage: TabletLeftPanelStage, compactTablet: boolean) {
+  const [stage, setStage] = useState(() => normalizedLeftStage(initialStage, compactTablet))
+  const offset = useSharedValue(tabletLeftPanelStageOffset(stage, compactTablet))
+
+  const settle = useCallback((nextStage: TabletLeftPanelStage) => {
+    const normalized = normalizedLeftStage(nextStage, compactTablet)
+    setStage(normalized)
+    settleOffset(offset, tabletLeftPanelStageOffset(normalized, compactTablet))
+  }, [compactTablet, offset])
+
+  const motionStyle = useAnimatedStyle(() => ({
+    marginRight: offset.value,
+    transform: [{ translateX: offset.value }],
+  }))
 
   return {
-    hidePanel: useCallback((panel: TabletPanel) => setPanelVisibility(panel, false), [setPanelVisibility]),
-    noteListVisible: panelOverrides.noteList ?? true,
-    propertiesVisible: panelOverrides.properties ?? defaults.defaultPropertiesVisible,
-    showPanel: useCallback((panel: TabletPanel) => setPanelVisibility(panel, true), [setPanelVisibility]),
-    sidebarVisible: panelOverrides.sidebar ?? defaults.defaultSidebarVisible,
+    beginDrag: useCallback(() => {
+      cancelAnimation(offset)
+      return stage
+    }, [offset, stage]),
+    canDrag: useCallback((dx: number) => {
+      const current = tabletLeftPanelStageOffset(stage, compactTablet)
+      const minimum = tabletLeftPanelStageOffset('editor', compactTablet)
+      return (dx < 0 && current > minimum) || (dx > 0 && current < 0)
+    }, [compactTablet, stage]),
+    drag: useCallback((dx: number, startStage: TabletLeftPanelStage) => {
+      setDirectOffset(offset, tabletLeftPanelDragOffset({ compactTablet, dx, stage: startStage }))
+    }, [compactTablet, offset]),
+    finishDrag: useCallback((dx: number, vx: number, startStage: TabletLeftPanelStage) => {
+      settle(tabletLeftPanelStageAfterDrag({ compactTablet, dx, stage: startStage, vx }))
+    }, [compactTablet, settle]),
+    motionStyle,
+    offset,
+    settle,
+    stage,
   }
 }
 
-function usePanelAnimation() {
-  const [offset] = useState(() => new NativeAnimated.Value(0))
-  const animate = useCallback((toValue: number, onDone?: () => void) => {
-    offset.stopAnimation()
-    NativeAnimated.timing(offset, {
-      duration: tabletPanelTransitionDurationMs,
-      toValue,
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      if (finished) onDone?.()
-    })
-  }, [offset])
-  const reset = useCallback(() => {
-    offset.stopAnimation()
-    offset.setValue(0)
-  }, [offset])
+type LeftPanelMotion = ReturnType<typeof useLeftPanelMotion>
 
-  useEffect(() => () => offset.stopAnimation(), [offset])
-
-  return { animate, offset, reset }
-}
-
-type PanelVisibility = ReturnType<typeof useTabletPanelVisibility>
-
-function usePropertiesPanelGestures({
-  exclusiveSidePanels,
+function usePropertiesPanelMotion({
+  compactTablet,
+  defaultPropertiesVisible,
+  leftPanels,
   propertiesReplaceSidebar,
-  visibility,
+  restoreStage,
 }: {
-  exclusiveSidePanels: boolean
+  compactTablet: boolean
+  defaultPropertiesVisible: boolean
+  leftPanels: LeftPanelMotion
   propertiesReplaceSidebar: boolean
-  visibility: PanelVisibility
+  restoreStage: TabletLeftPanelStage
 }) {
-  const [previewVisible, setPreviewVisible] = useState(false)
-  const restoreLeftPanels = useRef<{ noteList: boolean; sidebar: boolean } | null>(null)
-  const motion = usePanelAnimation()
   const panelWidth = desktopPanelParity.inspectorWidth
+  const [visible, setVisible] = useState(defaultPropertiesVisible)
+  const offset = useSharedValue(defaultPropertiesVisible ? 0 : panelWidth)
+  const restoreStageRef = useRef(normalizedLeftStage(restoreStage, compactTablet))
+  const dragVisibleRef = useRef(visible)
+  const dragRestoreStageRef = useRef(normalizedLeftStage(restoreStage, compactTablet))
   const actions = usePropertiesPanelActions({
-    exclusiveSidePanels,
-    propertiesReplaceSidebar,
-    motion,
+    leftPanels,
+    offset,
     panelWidth,
-    restoreLeftPanelsRef: restoreLeftPanels,
-    setPreviewVisible,
-    visibility,
+    propertiesReplaceSidebar,
+    restoreStageRef,
+    setVisible,
+    visible,
   })
   const drag = usePropertiesPanelDrag({
-    motion,
+    actions,
+    compactTablet,
+    dragRestoreStageRef,
+    dragVisibleRef,
+    leftPanels,
+    offset,
     panelWidth,
-    propertiesVisible: visibility.propertiesVisible,
-    setPreviewVisible,
-    showProperties: actions.showProperties,
+    propertiesReplaceSidebar,
+    restoreStageRef,
+    visible,
   })
+  const motionStyle = useAnimatedStyle(() => ({
+    marginLeft: -offset.value,
+    transform: [{ translateX: offset.value }],
+  }))
 
   return {
-    dismissForLeftChrome: actions.dismissForLeftChrome,
-    hideProperties: actions.hideProperties,
-    motionStyle: drag.motionStyle,
-    panelVisible: visibility.propertiesVisible || previewVisible,
-    propertiesVisible: visibility.propertiesVisible,
-    revealSwipe: drag.revealSwipe,
-    showProperties: actions.showProperties,
-    swipe: useHorizontalSwipe({ ...drag.swipeConfig, onSwipeRight: actions.hideProperties }),
+    ...actions,
+    ...drag,
+    motionStyle,
+    visible,
   }
 }
 
-type PanelMotion = ReturnType<typeof usePanelAnimation>
-type RestoreLeftPanels = { current: { noteList: boolean; sidebar: boolean } | null }
+type PropertiesStageRef = { current: TabletLeftPanelStage }
+type PropertiesVisibleRef = { current: boolean }
 
 function usePropertiesPanelActions({
-  exclusiveSidePanels,
-  motion,
+  leftPanels,
+  offset,
   panelWidth,
   propertiesReplaceSidebar,
-  restoreLeftPanelsRef,
-  setPreviewVisible,
-  visibility,
+  restoreStageRef,
+  setVisible,
+  visible,
 }: {
-  exclusiveSidePanels: boolean
-  motion: PanelMotion
+  leftPanels: LeftPanelMotion
+  offset: SharedValue<number>
   panelWidth: number
   propertiesReplaceSidebar: boolean
-  restoreLeftPanelsRef: RestoreLeftPanels
-  setPreviewVisible: (visible: boolean) => void
-  visibility: PanelVisibility
+  restoreStageRef: PropertiesStageRef
+  setVisible: (visible: boolean) => void
+  visible: boolean
 }) {
-  const dismissForLeftChrome = useCallback(() => {
-    restoreLeftPanelsRef.current = null
-    visibility.hidePanel('properties')
-    setPreviewVisible(false)
-    motion.reset()
-  }, [motion, restoreLeftPanelsRef, setPreviewVisible, visibility])
-  const showProperties = useCallback((fromGesture = false) => {
-    if (propertiesReplaceSidebar && !visibility.propertiesVisible) {
-      restoreLeftPanelsRef.current = {
-        noteList: visibility.noteListVisible,
-        sidebar: visibility.sidebarVisible,
-      }
-      visibility.hidePanel('sidebar')
-      if (exclusiveSidePanels) visibility.hidePanel('noteList')
-    }
-    setPreviewVisible(true)
-    if (!fromGesture) motion.offset.setValue(panelWidth)
-    motion.animate(0, () => {
-      visibility.showPanel('properties')
-      setPreviewVisible(false)
-      motion.reset()
-    })
-  }, [exclusiveSidePanels, motion, panelWidth, propertiesReplaceSidebar, restoreLeftPanelsRef, setPreviewVisible, visibility])
-  const hideProperties = useCallback(() => {
-    motion.animate(panelWidth, () => {
-      visibility.hidePanel('properties')
-      setPreviewVisible(false)
-      motion.reset()
-      restoreTabletPanelVisibility(restoreLeftPanelsRef.current, visibility.showPanel)
-      restoreLeftPanelsRef.current = null
-    })
-  }, [motion, panelWidth, restoreLeftPanelsRef, setPreviewVisible, visibility])
+  const hide = useCallback((restoreLeftPanels = true) => {
+    setVisible(false)
+    settleOffset(offset, panelWidth)
+    if (propertiesReplaceSidebar && restoreLeftPanels) leftPanels.settle(restoreStageRef.current)
+  }, [leftPanels, offset, panelWidth, propertiesReplaceSidebar, restoreStageRef, setVisible])
+  const show = useCallback(() => {
+    if (!visible && propertiesReplaceSidebar) restoreStageRef.current = leftPanels.stage
+    setVisible(true)
+    settleOffset(offset, 0)
+    if (propertiesReplaceSidebar) leftPanels.settle('editor')
+  }, [leftPanels, offset, propertiesReplaceSidebar, restoreStageRef, setVisible, visible])
 
-  return { dismissForLeftChrome, hideProperties, showProperties }
+  return { hide, show }
 }
+
+type PropertiesPanelActions = ReturnType<typeof usePropertiesPanelActions>
 
 function usePropertiesPanelDrag({
-  motion,
-  panelWidth,
-  propertiesVisible,
-  setPreviewVisible,
-  showProperties,
-}: {
-  motion: PanelMotion
-  panelWidth: number
-  propertiesVisible: boolean
-  setPreviewVisible: (visible: boolean) => void
-  showProperties: (fromGesture?: boolean) => void
-}) {
-  const handleProgress = useCallback(({ dx }: { dx: number }) => {
-    if (!propertiesVisible && dx < 0) setPreviewVisible(true)
-    motion.offset.stopAnimation()
-    motion.offset.setValue(tabletPropertiesDragOffset({ dx, visible: propertiesVisible, width: panelWidth }))
-  }, [motion.offset, panelWidth, propertiesVisible, setPreviewVisible])
-  const handleEnd = useCallback((committed: boolean) => {
-    if (committed) return
-    if (propertiesVisible) {
-      motion.animate(0)
-      return
-    }
-    motion.animate(panelWidth, () => {
-      setPreviewVisible(false)
-      motion.reset()
-    })
-  }, [motion, panelWidth, propertiesVisible, setPreviewVisible])
-  const motionStyle = useMemo(() => ({
-    marginLeft: NativeAnimated.multiply(motion.offset, -1),
-    transform: [{ translateX: motion.offset }],
-  }), [motion.offset])
-  const swipeConfig = {
-    captureOnStart: true,
-    disabled: !propertiesVisible,
-    onSwipeEnd: handleEnd,
-    onSwipeProgress: handleProgress,
-  }
-
-  return {
-    motionStyle,
-    revealSwipe: useHorizontalSwipe({
-      captureOnStart: true,
-      disabled: propertiesVisible,
-      onSwipeEnd: handleEnd,
-      onSwipeLeft: () => showProperties(true),
-      onSwipeProgress: handleProgress,
-    }),
-    swipeConfig,
-  }
-}
-
-function useLeftChromeGestures({
-  compactTablet,
-  dismissProperties,
-  visibility,
-}: {
-  compactTablet: boolean
-  dismissProperties: () => void
-  visibility: PanelVisibility
-}) {
-  const [previewVisible, setPreviewVisible] = useState(false)
-  const motion = usePanelAnimation()
-  const layout = tabletLeftChromeLayout({
-    compactTablet,
-    noteListVisible: visibility.noteListVisible,
-    previewVisible,
-    sidebarVisible: visibility.sidebarVisible,
-  })
-  const actions = useLeftChromeActions({
-    compactTablet,
-    currentWidth: layout.currentWidth,
-    dismissProperties,
-    motion,
-    revealWidth: layout.revealWidth,
-    setPreviewVisible,
-    visibility,
-  })
-  const drag = useLeftChromeDrag({
-    actions,
-    currentWidth: layout.currentWidth,
-    motion,
-    rendered: layout.rendered,
-    revealWidth: layout.revealWidth,
-    setPreviewVisible,
-  })
-
-  return {
-    hideLeftChrome: actions.hideLeftChrome,
-    leftChromeVisible: layout.rendered || previewVisible,
-    motionStyle: drag.motionStyle,
-    noteListVisible: visibility.noteListVisible,
-    renderNoteList: layout.renderNoteList,
-    renderSidebar: layout.renderSidebar,
-    revealSwipe: drag.revealSwipe,
-    showLeftChrome: actions.showLeftChrome,
-    showSidebar: layout.showSidebar,
-    swipe: drag.swipe,
-  }
-}
-
-function useLeftChromeActions({
-  compactTablet,
-  currentWidth,
-  dismissProperties,
-  motion,
-  revealWidth,
-  setPreviewVisible,
-  visibility,
-}: {
-  compactTablet: boolean
-  currentWidth: number
-  dismissProperties: () => void
-  motion: PanelMotion
-  revealWidth: number
-  setPreviewVisible: (visible: boolean) => void
-  visibility: PanelVisibility
-}) {
-  const showLeftChrome = useCallback((fromGesture = false) => {
-    dismissProperties()
-    setPreviewVisible(true)
-    if (!fromGesture) motion.offset.setValue(-revealWidth)
-    motion.animate(0, () => {
-      if (!compactTablet) visibility.showPanel('sidebar')
-      visibility.showPanel('noteList')
-      setPreviewVisible(false)
-      motion.reset()
-    })
-  }, [compactTablet, dismissProperties, motion, revealWidth, setPreviewVisible, visibility])
-  const hideLeftChrome = useCallback(() => {
-    if (currentWidth <= 0) return
-    motion.animate(-currentWidth, () => {
-      visibility.hidePanel('sidebar')
-      visibility.hidePanel('noteList')
-      setPreviewVisible(false)
-      motion.reset()
-    })
-  }, [currentWidth, motion, setPreviewVisible, visibility])
-
-  return { hideLeftChrome, showLeftChrome }
-}
-
-type LeftChromeActions = ReturnType<typeof useLeftChromeActions>
-
-function useLeftChromeDrag({
   actions,
-  currentWidth,
-  motion,
-  rendered,
-  revealWidth,
-  setPreviewVisible,
+  compactTablet,
+  dragRestoreStageRef,
+  dragVisibleRef,
+  leftPanels,
+  offset,
+  panelWidth,
+  propertiesReplaceSidebar,
+  restoreStageRef,
+  visible,
 }: {
-  actions: LeftChromeActions
-  currentWidth: number
-  motion: PanelMotion
-  rendered: boolean
-  revealWidth: number
-  setPreviewVisible: (visible: boolean) => void
+  actions: PropertiesPanelActions
+  compactTablet: boolean
+  dragRestoreStageRef: PropertiesStageRef
+  dragVisibleRef: PropertiesVisibleRef
+  leftPanels: LeftPanelMotion
+  offset: SharedValue<number>
+  panelWidth: number
+  propertiesReplaceSidebar: boolean
+  restoreStageRef: PropertiesStageRef
+  visible: boolean
 }) {
-  const handleProgress = useCallback(({ dx }: { dx: number }) => {
-    const width = rendered ? currentWidth : revealWidth
-    if (width <= 0) return
-    if (!rendered && dx > 0) setPreviewVisible(true)
-    motion.offset.stopAnimation()
-    motion.offset.setValue(tabletLeftChromeDragOffset({ dx, visible: rendered, width }))
-  }, [currentWidth, motion.offset, rendered, revealWidth, setPreviewVisible])
-  const handleEnd = useCallback((committed: boolean) => {
-    if (committed) return
-    if (rendered) {
-      motion.animate(0)
-      return
-    }
-    motion.animate(-revealWidth, () => {
-      setPreviewVisible(false)
-      motion.reset()
+  const beginDrag = useCallback(() => {
+    cancelAnimation(offset)
+    dragVisibleRef.current = visible
+    if (!visible && propertiesReplaceSidebar) restoreStageRef.current = leftPanels.stage
+    dragRestoreStageRef.current = restoreStageRef.current
+  }, [dragRestoreStageRef, dragVisibleRef, leftPanels.stage, offset, propertiesReplaceSidebar, restoreStageRef, visible])
+  const drag = useCallback((dx: number) => {
+    const nextOffset = tabletPropertiesDragOffset({ dx, visible: dragVisibleRef.current })
+    setDirectOffset(offset, nextOffset)
+    updateLeftPanelsDuringPropertiesDrag({
+      compactTablet,
+      leftPanels,
+      nextOffset,
+      panelWidth,
+      propertiesReplaceSidebar,
+      restoreStage: dragRestoreStageRef.current,
     })
-  }, [motion, rendered, revealWidth, setPreviewVisible])
-  const motionStyle = useMemo(() => ({
-    marginRight: motion.offset,
-    transform: [{ translateX: motion.offset }],
-  }), [motion.offset])
+  }, [compactTablet, dragRestoreStageRef, dragVisibleRef, leftPanels, offset, panelWidth, propertiesReplaceSidebar])
+  const finishDrag = useCallback((dx: number, vx: number) => {
+    const nextVisible = tabletPropertiesVisibleAfterDrag({ dx, visible: dragVisibleRef.current, vx })
+    if (nextVisible) actions.show()
+    else actions.hide()
+  }, [actions, dragVisibleRef])
 
-  return {
-    motionStyle,
-    revealSwipe: useHorizontalSwipe({
-      captureOnStart: true,
-      disabled: rendered,
-      onSwipeEnd: handleEnd,
-      onSwipeProgress: handleProgress,
-      onSwipeRight: () => actions.showLeftChrome(true),
+  return { beginDrag, drag, finishDrag }
+}
+
+function updateLeftPanelsDuringPropertiesDrag({
+  compactTablet,
+  leftPanels,
+  nextOffset,
+  panelWidth,
+  propertiesReplaceSidebar,
+  restoreStage,
+}: {
+  compactTablet: boolean
+  leftPanels: LeftPanelMotion
+  nextOffset: number
+  panelWidth: number
+  propertiesReplaceSidebar: boolean
+  restoreStage: TabletLeftPanelStage
+}) {
+  if (!propertiesReplaceSidebar) return
+  const restoreOffset = tabletLeftPanelStageOffset(restoreStage, compactTablet)
+  const editorOffset = tabletLeftPanelStageOffset('editor', compactTablet)
+  const openProgress = 1 - nextOffset / panelWidth
+  setDirectOffset(leftPanels.offset, restoreOffset + (editorOffset - restoreOffset) * openProgress)
+}
+
+type PropertiesPanelMotion = ReturnType<typeof usePropertiesPanelMotion>
+
+function useWorkspacePanHandlers({
+  leftPanels,
+  properties,
+}: {
+  leftPanels: LeftPanelMotion
+  properties: PropertiesPanelMotion
+}) {
+  const { width } = useWindowDimensions()
+
+  return PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_, gesture) => {
+      if (!horizontalSwipeCapturesMovement(gesture)) return false
+      const mode = workspaceDragMode(gesture, properties.visible, width)
+      if (mode === 'left' && !leftPanels.canDrag(gesture.dx)) return false
+      return true
+    },
+    onPanResponderGrant: (_, gesture) => {
+      if (workspaceDragMode(gesture, properties.visible, width) === 'properties') properties.beginDrag()
+      else leftPanels.beginDrag()
+    },
+    onPanResponderMove: (_, gesture) => {
+      if (workspaceDragMode(gesture, properties.visible, width) === 'properties') properties.drag(gesture.dx)
+      else leftPanels.drag(gesture.dx, leftPanels.stage)
+    },
+    onPanResponderRelease: (_, gesture) => finishWorkspaceDrag({
+      gesture,
+      leftPanels,
+      leftStartStage: leftPanels.stage,
+      mode: workspaceDragMode(gesture, properties.visible, width),
+      properties,
     }),
-    swipe: useHorizontalSwipe({
-      captureOnStart: true,
-      disabled: !rendered,
-      onSwipeEnd: handleEnd,
-      onSwipeLeft: actions.hideLeftChrome,
-      onSwipeProgress: handleProgress,
+    onPanResponderTerminate: (_, gesture) => finishWorkspaceDrag({
+      gesture,
+      leftPanels,
+      leftStartStage: leftPanels.stage,
+      mode: workspaceDragMode(gesture, properties.visible, width),
+      properties,
     }),
-  }
+    onPanResponderTerminationRequest: () => false,
+  }).panHandlers
+}
+
+function workspaceDragMode(
+  gesture: PanResponderGestureState,
+  propertiesVisible: boolean,
+  screenWidth: number,
+) {
+  return tabletWorkspaceDragMode({
+    dx: gesture.dx,
+    propertiesVisible,
+    screenWidth,
+    x0: gesture.x0,
+  })
+}
+
+function finishWorkspaceDrag(
+  {
+    gesture,
+    leftPanels,
+    leftStartStage,
+    mode,
+    properties,
+  }: {
+    gesture: PanResponderGestureState
+    leftPanels: LeftPanelMotion
+    leftStartStage: TabletLeftPanelStage
+    mode: TabletWorkspaceDragMode
+    properties: PropertiesPanelMotion
+  },
+) {
+  if (mode === 'properties') properties.finishDrag(gesture.dx, gesture.vx)
+  else leftPanels.finishDrag(gesture.dx, gesture.vx, leftStartStage)
+}
+
+function defaultLeftStage(options: TabletPanelGestureOptions): TabletLeftPanelStage {
+  if (options.compactTablet || !options.defaultSidebarVisible) return 'list'
+  return 'all'
 }
 
 export function useTabletPanelGestures(options: TabletPanelGestureOptions) {
-  const visibility = useTabletPanelVisibility(options)
-  const properties = usePropertiesPanelGestures({
-    exclusiveSidePanels: options.exclusiveSidePanels,
-    propertiesReplaceSidebar: options.propertiesReplaceSidebar,
-    visibility,
-  })
-  const leftChrome = useLeftChromeGestures({
+  const restoreStage = defaultLeftStage(options)
+  const initialStage = options.defaultPropertiesVisible && options.propertiesReplaceSidebar
+    ? 'editor'
+    : restoreStage
+  const leftPanels = useLeftPanelMotion(initialStage, options.compactTablet)
+  const properties = usePropertiesPanelMotion({
     compactTablet: options.compactTablet,
-    dismissProperties: properties.dismissForLeftChrome,
-    visibility,
+    defaultPropertiesVisible: options.defaultPropertiesVisible,
+    leftPanels,
+    propertiesReplaceSidebar: options.propertiesReplaceSidebar,
+    restoreStage,
   })
-  const { hidePanel, showPanel } = visibility
+  const workspacePanHandlers = useWorkspacePanHandlers({ leftPanels, properties })
+  const showLeftStage = useCallback((stage: TabletLeftPanelStage) => {
+    properties.hide(false)
+    leftPanels.settle(stage)
+  }, [leftPanels, properties])
+  const showSidebar = leftPanels.stage === 'all' && !options.compactTablet
+  const noteListVisible = leftPanels.stage !== 'editor'
 
   return {
-    showAllPanels: useCallback(() => {
-      properties.dismissForLeftChrome()
-      showPanel('sidebar')
-      showPanel('noteList')
-      if (!options.propertiesReplaceSidebar) showPanel('properties')
-    }, [options.propertiesReplaceSidebar, properties, showPanel]),
-    showEditorList: useCallback(() => {
-      hidePanel('sidebar')
-      showPanel('noteList')
-      properties.dismissForLeftChrome()
-    }, [hidePanel, properties, showPanel]),
-    showEditorOnly: useCallback(() => {
-      hidePanel('sidebar')
-      hidePanel('noteList')
-      properties.dismissForLeftChrome()
-    }, [hidePanel, properties]),
-    toggleSidebar: useCallback(() => {
-      if (leftChrome.showSidebar) hidePanel('sidebar')
-      else {
-        properties.dismissForLeftChrome()
-        showPanel('sidebar')
-      }
-    }, [hidePanel, leftChrome.showSidebar, properties, showPanel]),
-    toggleSidebarAndNoteList: useCallback(() => {
-      if (leftChrome.showSidebar || leftChrome.noteListVisible) leftChrome.hideLeftChrome()
-      else leftChrome.showLeftChrome()
-    }, [leftChrome]),
-    hideLeftChrome: leftChrome.hideLeftChrome,
-    showLeftChrome: useCallback(() => leftChrome.showLeftChrome(), [leftChrome]),
-    leftChromeMotionStyle: leftChrome.motionStyle,
-    leftChromeRevealSwipe: leftChrome.revealSwipe,
-    leftChromeSwipe: leftChrome.swipe,
-    leftChromeVisible: leftChrome.leftChromeVisible,
-    noteListVisible: leftChrome.noteListVisible,
+    hideLeftChrome: useCallback(() => showLeftStage('editor'), [showLeftStage]),
+    hideProperties: properties.hide,
+    leftChromeMotionStyle: leftPanels.motionStyle,
+    leftChromeVisible: true,
+    noteListVisible,
     propertiesMotionStyle: properties.motionStyle,
-    hideProperties: properties.hideProperties,
-    propertiesPanelVisible: properties.panelVisible,
-    showProperties: useCallback(() => properties.showProperties(), [properties]),
+    propertiesPanelVisible: true,
+    propertiesVisible: properties.visible,
+    renderNoteList: true,
+    renderSidebar: !options.compactTablet,
+    showAllPanels: useCallback(() => {
+      leftPanels.settle('all')
+      if (options.propertiesReplaceSidebar) properties.hide(false)
+      else properties.show()
+    }, [leftPanels, options.propertiesReplaceSidebar, properties]),
+    showEditorList: useCallback(() => showLeftStage('list'), [showLeftStage]),
+    showEditorOnly: useCallback(() => showLeftStage('editor'), [showLeftStage]),
+    showLeftChrome: useCallback(() => showLeftStage('all'), [showLeftStage]),
+    showProperties: properties.show,
+    showSidebar,
     toggleProperties: useCallback(() => {
-      if (properties.propertiesVisible) properties.hideProperties()
-      else properties.showProperties()
+      if (properties.visible) properties.hide()
+      else properties.show()
     }, [properties]),
-    propertiesRevealSwipe: properties.revealSwipe,
-    propertiesSwipe: properties.swipe,
-    propertiesVisible: properties.propertiesVisible,
-    renderNoteList: leftChrome.renderNoteList,
-    renderSidebar: leftChrome.renderSidebar,
-    showSidebar: leftChrome.showSidebar,
+    toggleSidebar: useCallback(() => {
+      showLeftStage(showSidebar ? 'list' : 'all')
+    }, [showLeftStage, showSidebar]),
+    toggleSidebarAndNoteList: useCallback(() => {
+      showLeftStage(noteListVisible ? 'editor' : 'all')
+    }, [noteListVisible, showLeftStage]),
+    workspacePanHandlers,
   }
 }

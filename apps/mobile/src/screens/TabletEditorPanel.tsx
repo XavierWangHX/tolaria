@@ -1,4 +1,4 @@
-import { Code, DotsThree, FileText, Star } from 'phosphor-react-native'
+import { Code, DotsThree, FileText, SidebarSimple, Star } from 'phosphor-react-native'
 import {
   ScrollView,
   View,
@@ -7,7 +7,6 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
 import { MobileEditorBlocks } from '../components/workspace/MobileEditorBlocks'
 import { MobileMarkdownSourceEditor } from '../components/workspace/MobileMarkdownSourceEditor'
 import { MobileNoteIcon, MobileTypeIcon } from '../components/workspace/MobileWorkspaceIcons'
@@ -19,110 +18,27 @@ import { MobilePanel, MobileToolbar, MobileToolbarTitle } from '../ui/MobilePane
 import { desktopEditorParity, desktopToolbarActionParity } from '../ui/desktopParity'
 import { mobileColors } from '../ui/tokens'
 import { MobileLayoutProbeReadout } from '../qa/MobileLayoutProbeReadout'
-import { useMobileLayoutProbe, type MobileLayoutProbe } from '../qa/mobileLayoutProbe'
-import type { MobileEditorBlock, MobileNote, MobileTypeDefinitions } from '../workspace/mobileWorkspaceModel'
+import { useMobileLayoutProbe } from '../qa/mobileLayoutProbe'
+import type { MobileEditorBlock, MobileNote } from '../workspace/mobileWorkspaceModel'
 import { type MobileTableOfContentsTarget } from '../workspace/mobileTableOfContents'
 import { nativeTableOfContentsScrollProof, type NativeTableOfContentsProof } from '../qa/nativeTableOfContentsProbe'
-import { useMobileAttachmentImporter, type MobileAttachmentImporter } from '../workspace/mobileAttachmentImport'
-import { useMobileAttachmentLinkOpener, type MobileAttachmentLinkOpener } from '../workspace/mobileAttachmentOpen'
-import { useRegisteredMobileEditorCommands, type RegisterMobileEditorCommands } from '../workspace/mobileEditorCommands'
+import { useMobileAttachmentImporter } from '../workspace/mobileAttachmentImport'
+import { useMobileAttachmentLinkOpener } from '../workspace/mobileAttachmentOpen'
+import { useRegisteredMobileEditorCommands } from '../workspace/mobileEditorCommands'
 import { mobileNoteActionMode } from '../workspace/mobileNoteActionMode'
 import { EmptyEditorPanel, MobileFilePreviewFallback } from './TabletEditorPanelChrome'
 import { panelStyles } from './TabletEditorPanelStyles'
+import type {
+  EditorContentProps,
+  EditorEditingMode,
+  EditorFileMode,
+  EditorPanelBodyProps,
+  EditorToolbarProps,
+  TableOfContentsScroll,
+  TabletEditorPanelProps,
+} from './TabletEditorPanel.types'
 
-type TabletEditorPanelProps = {
-  blocks: MobileEditorBlock[]
-  bullets: string[]
-  compact: boolean
-  initialEditing?: boolean
-  initialEditingMode?: EditorEditingMode
-  layoutProbe?: boolean
-  leading?: ReactNode
-  note: MobileNote | null
-  notes: MobileNote[]
-  onNavigateWikilink: (target: string) => void
-  onOpenMoreActions: () => void
-  onRegisterEditorCommands?: RegisterMobileEditorCommands
-  onTableOfContentsScrollProof?: (proof: NativeTableOfContentsProof) => void
-  onToggleFavorite: () => void
-  onUpdateContent: (noteId: string, content: string) => void
-  sourceIdleSave?: boolean
-  sourceSelectionProbe?: boolean
-  tableOfContentsTarget?: MobileTableOfContentsTarget | null
-  typeDefinitions?: MobileTypeDefinitions
-  vaultRootUri?: string | null
-  wysiwygAutocompleteProbe?: boolean
-  wysiwygExternalLinkProbe?: boolean
-  wysiwygFormatCommandProbe?: boolean
-  wysiwygInputTransformProbe?: boolean
-  wysiwygMarkdownBlockProbe?: boolean
-  wysiwygMathEditProbe?: boolean
-  wysiwygTableCommandMutationProbe?: boolean
-  wysiwygWikilinkInsertProbe?: boolean
-  wysiwygMutationProbe?: boolean
-}
-
-type EditorToolbarProps = {
-  editing: boolean
-  editingMode: EditorEditingMode
-  fileMode: EditorFileMode
-  leading?: ReactNode
-  note: MobileNote
-  onOpenMoreActions: () => void
-  onToggleSourceMode: () => void
-  onToggleFavorite: () => void
-  typeDefinitions?: MobileTypeDefinitions
-}
-
-type EditorPanelBodyProps = {
-  compact: boolean
-  contentProps: EditorContentProps
-  fileMode: EditorFileMode
-  note: MobileNote
-  onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void
-  onScrollViewRef: (node: ScrollView | null) => void
-}
-
-type EditorContentProps = {
-  blocks: MobileEditorBlock[]
-  bullets: string[]
-  compact: boolean
-  editing: boolean
-  editingMode: EditorEditingMode
-  note: MobileNote
-  notes: MobileNote[]
-  layoutProbe: MobileLayoutProbe
-  plainText: boolean
-  typeDefinitions?: MobileTypeDefinitions
-  onNavigateWikilink: (target: string) => void
-  onImportAttachment?: MobileAttachmentImporter
-  onOpenLink: MobileAttachmentLinkOpener
-  onRegisterEditorCommands?: RegisterMobileEditorCommands
-  onTableOfContentsScrollProof?: (proof: NativeTableOfContentsProof) => void
-  onUpdateContent: (noteId: string, content: string) => void
-  onTableOfContentsTargetLayout: (targetId: string, event: LayoutChangeEvent) => void
-  sourceIdleSave: boolean
-  sourceSelectionProbe?: boolean
-  tableOfContentsTarget?: MobileTableOfContentsTarget | null
-  vaultRootUri?: string | null
-  wysiwygAutocompleteProbe?: boolean
-  wysiwygExternalLinkProbe?: boolean
-  wysiwygFormatCommandProbe?: boolean
-  wysiwygInputTransformProbe?: boolean
-  wysiwygMarkdownBlockProbe?: boolean
-  wysiwygMathEditProbe?: boolean
-  wysiwygTableCommandMutationProbe?: boolean
-  wysiwygWikilinkInsertProbe?: boolean
-  wysiwygMutationProbe?: boolean
-}
-type TableOfContentsScroll = {
-  onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void
-  onTargetLayout: (targetId: string, event: LayoutChangeEvent) => void
-  setScrollViewNode: (node: ScrollView | null) => void
-}
-
-export type EditorEditingMode = 'source' | 'wysiwyg'
-type EditorFileMode = 'binary' | 'markdown' | 'text'
+export type { EditorEditingMode } from './TabletEditorPanel.types'
 
 export function TabletEditorPanel(props: TabletEditorPanelProps) {
   const {
@@ -139,8 +55,10 @@ export function TabletEditorPanel(props: TabletEditorPanelProps) {
     onOpenMoreActions,
     onRegisterEditorCommands,
     onTableOfContentsScrollProof,
+    onToggleProperties,
     onToggleFavorite,
     onUpdateContent,
+    propertiesVisible,
     sourceIdleSave = true,
     sourceSelectionProbe = false,
     tableOfContentsTarget = null,
@@ -221,8 +139,10 @@ export function TabletEditorPanel(props: TabletEditorPanelProps) {
         leading={leading}
         note={note}
         onOpenMoreActions={onOpenMoreActions}
+        onToggleProperties={onToggleProperties}
         onToggleSourceMode={toggleSourceMode}
         onToggleFavorite={onToggleFavorite}
+        propertiesVisible={propertiesVisible}
         typeDefinitions={typeDefinitions}
       />
       <EditorPanelBody
@@ -333,8 +253,10 @@ function EditorToolbar({
   leading,
   note,
   onOpenMoreActions,
+  onToggleProperties,
   onToggleSourceMode,
   onToggleFavorite,
+  propertiesVisible,
   typeDefinitions,
 }: EditorToolbarProps) {
   const chipLabel = editorToolbarChipLabel(fileMode)
@@ -352,8 +274,10 @@ function EditorToolbar({
         fileMode={fileMode}
         note={note}
         onOpenMoreActions={onOpenMoreActions}
+        onToggleProperties={onToggleProperties}
         onToggleFavorite={onToggleFavorite}
         onToggleSourceMode={onToggleSourceMode}
+        propertiesVisible={propertiesVisible}
       />
     </MobileToolbar>
   )
@@ -388,19 +312,26 @@ function EditorToolbarIcon({
 
 function EditorToolbarActions(props: EditorToolbarProps) {
   if (props.fileMode !== 'markdown') return <FileToolbarActions {...props} />
-
   return <MarkdownToolbarActions {...props} />
 }
 
-function FileToolbarActions({ onOpenMoreActions }: EditorToolbarProps) {
+function FileToolbarActions(props: EditorToolbarProps) {
   return (
-    <MobileIconButton
-      accessibilityLabel={mobileText('editor.toolbar.moreActions')}
-      testID="editor-more-action"
-      onPress={onOpenMoreActions}
-    >
-      <DotsThree color={mobileColors.textMuted} size={desktopToolbarActionParity.iconSize} weight="bold" />
-    </MobileIconButton>
+    <>
+      <MobileIconButton
+        accessibilityLabel={mobileText('editor.toolbar.moreActions')}
+        testID="editor-more-action"
+        onPress={props.onOpenMoreActions}
+      >
+        <DotsThree color={mobileColors.textMuted} size={desktopToolbarActionParity.iconSize} weight="bold" />
+      </MobileIconButton>
+      {props.onToggleProperties ? (
+        <PropertiesToolbarAction
+          onToggleProperties={props.onToggleProperties}
+          propertiesVisible={props.propertiesVisible}
+        />
+      ) : null}
+    </>
   )
 }
 
@@ -408,8 +339,10 @@ function MarkdownToolbarActions({
   editingMode,
   note,
   onOpenMoreActions,
+  onToggleProperties,
   onToggleFavorite,
   onToggleSourceMode,
+  propertiesVisible,
 }: EditorToolbarProps) {
   const sourceModeActive = editingMode === 'source'
 
@@ -444,7 +377,37 @@ function MarkdownToolbarActions({
       >
         <DotsThree color={mobileColors.textMuted} size={desktopToolbarActionParity.iconSize} weight="bold" />
       </MobileIconButton>
+      {onToggleProperties ? (
+        <PropertiesToolbarAction
+          onToggleProperties={onToggleProperties}
+          propertiesVisible={propertiesVisible}
+        />
+      ) : null}
     </>
+  )
+}
+
+function PropertiesToolbarAction({
+  onToggleProperties,
+  propertiesVisible,
+}: {
+  onToggleProperties: () => void
+  propertiesVisible?: boolean
+}) {
+  return (
+    <MobileIconButton
+      accessibilityLabel={mobileText(
+        propertiesVisible ? 'inspector.title.closePropertiesShortcut' : 'editor.toolbar.openProperties',
+      )}
+      selected={propertiesVisible}
+      testID="editor-properties-action"
+      onPress={onToggleProperties}
+    >
+      <SidebarSimple
+        color={propertiesVisible ? mobileColors.primary : mobileColors.textMuted}
+        size={desktopToolbarActionParity.iconSize}
+      />
+    </MobileIconButton>
   )
 }
 

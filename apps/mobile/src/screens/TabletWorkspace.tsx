@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Animated as NativeAnimated, Dimensions, Platform, StyleSheet, useWindowDimensions, View } from 'react-native'
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
+import { Dimensions, Platform, StyleSheet, useWindowDimensions, View } from 'react-native'
+import Reanimated from 'react-native-reanimated'
 import { CaretLeft, CaretRight, SidebarSimple } from 'phosphor-react-native'
 import { MobileCommandPalette } from '../components/workspace/MobileCommandPalette'
 import { MobileNoteListPanel } from '../components/workspace/MobileNoteListPanel'
@@ -18,7 +19,6 @@ import { mobileColors } from '../ui/tokens'
 import { desktopPanelParity } from '../ui/desktopParity'
 import { MobileIconButton } from '../ui/MobileIconButton'
 import { mobileText } from '../i18n/mobileText'
-import { useHorizontalSwipe } from '../ui/useHorizontalSwipe'
 import { useMobileEditorCommandRegistry, type RegisterMobileEditorCommands } from '../workspace/mobileEditorCommands'
 import { mobileNoteIdForWikilinkTarget } from '../workspace/mobileWikilinks'
 import { buildMobileCommandPaletteCommands } from '../workspace/mobileCommandPalette'
@@ -33,7 +33,6 @@ import {
   type MobileTableOfContentsTarget,
 } from '../workspace/mobileTableOfContents'
 import { TabletEditorPanel } from './TabletEditorPanel'
-import { tabletLeftChromeRendered } from './tabletWorkspacePanelTransitions'
 import { tabletScreenModeForWindow } from './tabletWorkspaceScreenMode'
 import type {
   MobileActionSheetQaTarget,
@@ -244,15 +243,16 @@ function TabletWorkspaceChrome(props: TabletWorkspaceChromeProps) {
   }, [props.keyboardShortcutProbe])
 
   return (
-    <View style={styles.shell}>
+    <View
+      {...gestures.workspacePanHandlers}
+      collapsable={false}
+      style={styles.shell}
+      testID="tablet-workspace-gesture-surface"
+    >
       <TabletLeftChromeHost
         {...props}
         gestures={gestures}
         onOpenCommandPalette={openCommandPalette}
-        rendered={tabletLeftChromeRendered({
-          propertiesPanelVisible: gestures.propertiesPanelVisible,
-          propertiesReplaceSidebar,
-        })}
       />
       <TabletEditorPanelHost
         {...props}
@@ -273,9 +273,22 @@ function TabletWorkspaceChrome(props: TabletWorkspaceChromeProps) {
         suggestionNotes={suggestionNotes}
         onSelectTableOfContentsTarget={handleSelectTableOfContentsTarget}
       />
-      {commandPaletteOpen ? <MobileCommandPalette commands={commandPaletteCommands} onClose={closeCommandPalette} /> : null}
+      <TabletCommandPaletteHost
+        commands={commandPaletteCommands}
+        open={commandPaletteOpen}
+        onClose={closeCommandPalette}
+      />
     </View>
   )
+}
+
+function TabletCommandPaletteHost({
+  commands,
+  open,
+  onClose,
+}: ComponentProps<typeof MobileCommandPalette> & { open: boolean }) {
+  if (!open) return null
+  return <MobileCommandPalette commands={commands} onClose={onClose} />
 }
 
 function useTabletTransitionProbe(
@@ -362,35 +375,15 @@ function adjacentVisibleNoteId(
   return notes[nextIndex]?.id ?? null
 }
 
-function TabletLeftChromeHost(props: TabletSidebarHostProps & { rendered: boolean }) {
-  const { gestures, rendered } = props
-
-  if (!rendered) return null
-
-  if (!gestures.leftChromeVisible) {
-    return (
-      <SwipeRail
-        edge="left"
-        swipeHandlers={gestures.leftChromeRevealSwipe}
-        testID="tablet-left-chrome-reveal-rail"
-      />
-    )
-  }
-
+function TabletLeftChromeHost(props: TabletSidebarHostProps) {
   return (
-    <NativeAnimated.View
-      {...webSwipeHandlers(gestures.leftChromeSwipe)}
-      style={[styles.leftChromeHost, gestures.leftChromeMotionStyle]}
+    <Reanimated.View
+      style={[styles.leftChromeHost, props.gestures.leftChromeMotionStyle]}
+      testID="tablet-left-panel-strip"
     >
       <TabletSidebarHost {...props} />
       <TabletNoteListHost {...props} />
-      <SwipeRail
-        edge="right"
-        overlay
-        swipeHandlers={gestures.leftChromeSwipe}
-        testID="tablet-left-chrome-hide-rail"
-      />
-    </NativeAnimated.View>
+    </Reanimated.View>
   )
 }
 
@@ -416,7 +409,12 @@ function TabletSidebarHost({
   if (!gestures.renderSidebar) return null
 
   return (
-    <View style={styles.panelHost}>
+    <View
+      accessibilityElementsHidden={!gestures.showSidebar}
+      importantForAccessibility={gestures.showSidebar ? 'auto' : 'no-hide-descendants'}
+      pointerEvents={gestures.showSidebar ? 'auto' : 'none'}
+      style={styles.panelHost}
+    >
       <MobileWorkspaceSidebar
         activeFolderId={activeFolderId}
         activeItemId={activeItemId}
@@ -441,53 +439,46 @@ function TabletSidebarHost({
 }
 
 function TabletNoteListHost(props: TabletPanelHostProps) {
-  const {
-    compactTablet,
-    gestures,
-    layoutProbe,
-    noteListNeighborhood,
-    noteListProperties,
-    noteListSubtitle,
-    noteListTitle,
-    notes,
-    onOpenCreateNote,
-    onOpenNativeVault,
-    onOpenSearch,
-    onSelectNote,
-    searchQuery,
-    selectedNoteId,
-    snapshot,
-  } = props
+  const { gestures } = props
   if (!gestures.renderNoteList) return null
 
   return (
-    <View style={styles.panelHost}>
-      <MobileNoteListPanel
-        compact={compactTablet}
-        bulkActions={tabletNoteListBulkActions(props)}
-        displayPropertyKeys={noteListProperties}
-        emptyVault={mobileWorkspaceHasNoVault(snapshot)}
-        layoutProbe={layoutProbe}
-        leading={<TabletNoteListSidebarAction gestures={gestures} />}
-        neighborhood={noteListNeighborhood}
-        noteListFilter={props.noteListFilter}
-        noteListFilterCounts={props.noteListFilterCounts}
-        noteListFilterVisible={props.noteListFilterVisible}
-        notes={notes}
-        propertyDisplayModes={snapshot.vaultConfig?.propertyDisplayModes}
-        searchQuery={searchQuery || undefined}
-        selectedNoteId={selectedNoteId}
-        subtitle={noteListSubtitle}
-        title={noteListTitle}
-        typeDefinitions={snapshot.typeDefinitions}
-        onOpenCreateNote={onOpenCreateNote}
-        onOpenSearch={onOpenSearch}
-        onOpenVault={onOpenNativeVault}
-        onNoteListFilterChange={props.onNoteListFilterChange}
-        onSelectNote={onSelectNote}
-      />
+    <View
+      accessibilityElementsHidden={!gestures.noteListVisible}
+      importantForAccessibility={gestures.noteListVisible ? 'auto' : 'no-hide-descendants'}
+      pointerEvents={gestures.noteListVisible ? 'auto' : 'none'}
+      style={styles.panelHost}
+    >
+      <MobileNoteListPanel {...tabletNoteListPanelProps(props)} />
     </View>
   )
+}
+
+function tabletNoteListPanelProps(props: TabletPanelHostProps): ComponentProps<typeof MobileNoteListPanel> {
+  return {
+    bulkActions: tabletNoteListBulkActions(props),
+    compact: props.compactTablet,
+    displayPropertyKeys: props.noteListProperties,
+    emptyVault: mobileWorkspaceHasNoVault(props.snapshot),
+    layoutProbe: props.layoutProbe,
+    leading: <TabletNoteListSidebarAction gestures={props.gestures} />,
+    neighborhood: props.noteListNeighborhood,
+    noteListFilter: props.noteListFilter,
+    noteListFilterCounts: props.noteListFilterCounts,
+    noteListFilterVisible: props.noteListFilterVisible,
+    notes: props.notes,
+    propertyDisplayModes: props.snapshot.vaultConfig?.propertyDisplayModes,
+    searchQuery: props.searchQuery || undefined,
+    selectedNoteId: props.selectedNoteId,
+    subtitle: props.noteListSubtitle,
+    title: props.noteListTitle,
+    typeDefinitions: props.snapshot.typeDefinitions,
+    onNoteListFilterChange: props.onNoteListFilterChange,
+    onOpenCreateNote: props.onOpenCreateNote,
+    onOpenSearch: props.onOpenSearch,
+    onOpenVault: props.onOpenNativeVault,
+    onSelectNote: props.onSelectNote,
+  }
 }
 
 function tabletNoteListBulkActions(props: TabletPanelHostProps) {
@@ -544,70 +535,44 @@ type TabletEditorPanelHostProps = Pick<
   typeDefinitions: MobileWorkspaceSnapshot['typeDefinitions']
 }
 
-function TabletEditorPanelHost({
-  compactTablet,
-  editorBlocks,
-  editorBullets,
-  gestures,
-  initialEditorEditing,
-  initialEditorEditingMode,
-  layoutProbe,
-  onNavigateWikilink,
-  onOpenMoreActions,
-  onRegisterEditorCommands,
-  onTableOfContentsScrollProof,
-  onToggleFavorite,
-  onUpdateNoteContent,
-  selectedNote,
-  sourceIdleSave,
-  sourceSelectionProbe,
-  suggestionNotes,
-  tableOfContentsTarget,
-  typeDefinitions,
-  vaultRootUri,
-  wysiwygAutocompleteProbe,
-  wysiwygExternalLinkProbe,
-  wysiwygFormatCommandProbe,
-  wysiwygInputTransformProbe,
-  wysiwygMarkdownBlockProbe,
-  wysiwygMathEditProbe,
-  wysiwygTableCommandMutationProbe,
-  wysiwygWikilinkInsertProbe,
-  wysiwygMutationProbe,
-}: TabletEditorPanelHostProps) {
-  return (
-    <TabletEditorPanel
-      blocks={editorBlocks}
-      bullets={editorBullets}
-      compact={compactTablet}
-      initialEditing={initialEditorEditing}
-      initialEditingMode={initialEditorEditingMode}
-      leading={<TabletEditorChromeToggle gestures={gestures} />}
-      layoutProbe={layoutProbe}
-      note={selectedNote}
-      notes={suggestionNotes}
-      onNavigateWikilink={onNavigateWikilink}
-      onOpenMoreActions={onOpenMoreActions}
-      onRegisterEditorCommands={onRegisterEditorCommands}
-      onTableOfContentsScrollProof={onTableOfContentsScrollProof}
-      onToggleFavorite={onToggleFavorite}
-      onUpdateContent={onUpdateNoteContent}
-      sourceIdleSave={sourceIdleSave}
-      sourceSelectionProbe={sourceSelectionProbe}
-      tableOfContentsTarget={tableOfContentsTarget}
-      typeDefinitions={typeDefinitions}
-      vaultRootUri={vaultRootUri}
-      wysiwygAutocompleteProbe={wysiwygAutocompleteProbe}
-      wysiwygExternalLinkProbe={wysiwygExternalLinkProbe}
-      wysiwygFormatCommandProbe={wysiwygFormatCommandProbe}
-      wysiwygInputTransformProbe={wysiwygInputTransformProbe}
-      wysiwygMarkdownBlockProbe={wysiwygMarkdownBlockProbe}
-      wysiwygMathEditProbe={wysiwygMathEditProbe}
-      wysiwygTableCommandMutationProbe={wysiwygTableCommandMutationProbe}
-      wysiwygWikilinkInsertProbe={wysiwygWikilinkInsertProbe}
-      wysiwygMutationProbe={wysiwygMutationProbe}
-    />
-  )
+function TabletEditorPanelHost(props: TabletEditorPanelHostProps) {
+  return <TabletEditorPanel {...tabletEditorPanelProps(props)} />
+}
+
+function tabletEditorPanelProps(props: TabletEditorPanelHostProps): ComponentProps<typeof TabletEditorPanel> {
+  return {
+    blocks: props.editorBlocks,
+    bullets: props.editorBullets,
+    compact: props.compactTablet,
+    initialEditing: props.initialEditorEditing,
+    initialEditingMode: props.initialEditorEditingMode,
+    layoutProbe: props.layoutProbe,
+    leading: <TabletEditorChromeToggle gestures={props.gestures} />,
+    note: props.selectedNote,
+    notes: props.suggestionNotes,
+    onNavigateWikilink: props.onNavigateWikilink,
+    onOpenMoreActions: props.onOpenMoreActions,
+    onRegisterEditorCommands: props.onRegisterEditorCommands,
+    onTableOfContentsScrollProof: props.onTableOfContentsScrollProof,
+    onToggleFavorite: props.onToggleFavorite,
+    onToggleProperties: props.gestures.toggleProperties,
+    onUpdateContent: props.onUpdateNoteContent,
+    propertiesVisible: props.gestures.propertiesVisible,
+    sourceIdleSave: props.sourceIdleSave,
+    sourceSelectionProbe: props.sourceSelectionProbe,
+    tableOfContentsTarget: props.tableOfContentsTarget,
+    typeDefinitions: props.typeDefinitions,
+    vaultRootUri: props.vaultRootUri,
+    wysiwygAutocompleteProbe: props.wysiwygAutocompleteProbe,
+    wysiwygExternalLinkProbe: props.wysiwygExternalLinkProbe,
+    wysiwygFormatCommandProbe: props.wysiwygFormatCommandProbe,
+    wysiwygInputTransformProbe: props.wysiwygInputTransformProbe,
+    wysiwygMarkdownBlockProbe: props.wysiwygMarkdownBlockProbe,
+    wysiwygMathEditProbe: props.wysiwygMathEditProbe,
+    wysiwygMutationProbe: props.wysiwygMutationProbe,
+    wysiwygTableCommandMutationProbe: props.wysiwygTableCommandMutationProbe,
+    wysiwygWikilinkInsertProbe: props.wysiwygWikilinkInsertProbe,
+  }
 }
 
 function TabletEditorChromeToggle({ gestures }: { gestures: TabletPanelGestures }) {
@@ -629,29 +594,16 @@ function TabletPropertiesPanelHost(props: TabletPropertiesPanelHostProps) {
   const { gestures } = props
   const referenceGroups = useMobileInspectorReferenceGroups(props.selectedNote, props.snapshot)
 
-  if (!gestures.propertiesPanelVisible) {
-    return (
-      <SwipeRail
-        edge="right"
-        swipeHandlers={gestures.propertiesRevealSwipe}
-        testID="tablet-properties-reveal-rail"
-      />
-    )
-  }
-
   return (
-    <NativeAnimated.View
-      {...webSwipeHandlers(gestures.propertiesSwipe)}
+    <Reanimated.View
+      accessibilityElementsHidden={!gestures.propertiesVisible}
+      importantForAccessibility={gestures.propertiesVisible ? 'auto' : 'no-hide-descendants'}
+      pointerEvents={gestures.propertiesVisible ? 'auto' : 'none'}
       style={[styles.panelHost, styles.propertiesPanelHost, gestures.propertiesMotionStyle]}
+      testID="tablet-properties-panel-host"
     >
       <MobilePropertiesPanel {...propertiesPanelProps(props, referenceGroups)} />
-      <SwipeRail
-        edge="left"
-        overlay
-        swipeHandlers={gestures.propertiesSwipe}
-        testID="tablet-properties-hide-rail"
-      />
-    </NativeAnimated.View>
+    </Reanimated.View>
   )
 }
 
@@ -937,42 +889,12 @@ function actionSheetViewHandlers(props: ActionSheetHostProps) {
   }
 }
 
-function SwipeRail({
-  edge,
-  overlay = false,
-  swipeHandlers,
-  testID,
-}: {
-  edge: 'left' | 'right'
-  overlay?: boolean
-  swipeHandlers: ReturnType<typeof useHorizontalSwipe>
-  testID: string
-}) {
-  return (
-    <View
-      {...swipeHandlers}
-      collapsable={false}
-      style={[
-        styles.swipeRail,
-        edge === 'right' ? styles.swipeRailRight : null,
-        overlay ? styles.swipeRailOverlay : null,
-        overlay && edge === 'left' ? styles.swipeRailOverlayLeft : null,
-        overlay && edge === 'right' ? styles.swipeRailOverlayRight : null,
-      ]}
-      testID={testID}
-    />
-  )
-}
-
-function webSwipeHandlers(swipeHandlers: ReturnType<typeof useHorizontalSwipe>) {
-  return Platform.OS === 'web' ? swipeHandlers : {}
-}
-
 const styles = StyleSheet.create({
   shell: {
     flex: 1,
     flexDirection: 'row',
     backgroundColor: mobileColors.app,
+    overflow: 'hidden',
   },
   shellRoot: {
     flex: 1,
@@ -990,31 +912,5 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     flexDirection: 'row',
     height: '100%',
-  },
-  swipeRail: {
-    width: 18,
-    backgroundColor: mobileColors.card,
-    borderRightColor: mobileColors.border,
-    borderRightWidth: StyleSheet.hairlineWidth,
-  },
-  swipeRailRight: {
-    borderLeftColor: mobileColors.border,
-    borderLeftWidth: StyleSheet.hairlineWidth,
-    borderRightWidth: 0,
-  },
-  swipeRailOverlay: {
-    backgroundColor: 'transparent',
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    bottom: 0,
-    position: 'absolute',
-    top: 0,
-    zIndex: 10,
-  },
-  swipeRailOverlayLeft: {
-    left: 0,
-  },
-  swipeRailOverlayRight: {
-    right: 0,
   },
 })

@@ -2,6 +2,89 @@ import { desktopPanelParity } from '../ui/desktopParity'
 import type { TabletPanel } from './tabletWorkspaceTypes'
 
 export const tabletPanelTransitionDurationMs = 160
+export const tabletPropertiesEdgeWidth = 32
+
+export type TabletLeftPanelStage = 'all' | 'editor' | 'list'
+export type TabletWorkspaceDragMode = 'left' | 'properties'
+
+export function tabletLeftPanelStageOffset(stage: TabletLeftPanelStage, compactTablet: boolean) {
+  if (stage === 'editor') {
+    return -(desktopPanelParity.noteListWidth + (compactTablet ? 0 : desktopPanelParity.sidebarWidth))
+  }
+  if (stage === 'list' && !compactTablet) return -desktopPanelParity.sidebarWidth
+  return 0
+}
+
+export function tabletLeftPanelDragOffset({
+  compactTablet,
+  dx,
+  stage,
+}: {
+  compactTablet: boolean
+  dx: number
+  stage: TabletLeftPanelStage
+}) {
+  const minimum = tabletLeftPanelStageOffset('editor', compactTablet)
+  return clamp(tabletLeftPanelStageOffset(stage, compactTablet) + dx, minimum, 0)
+}
+
+export function tabletLeftPanelStageAfterDrag({
+  compactTablet,
+  dx,
+  stage,
+  vx,
+}: {
+  compactTablet: boolean
+  dx: number
+  stage: TabletLeftPanelStage
+  vx: number
+}) {
+  const stages = compactTablet
+    ? (['list', 'editor'] as const)
+    : (['all', 'list', 'editor'] as const)
+  const offset = tabletLeftPanelDragOffset({ compactTablet, dx, stage })
+  const projectedOffset = clamp(
+    offset + vx * 200,
+    tabletLeftPanelStageOffset('editor', compactTablet),
+    0,
+  )
+  return stages.reduce((nearest, candidate) => (
+    Math.abs(tabletLeftPanelStageOffset(candidate, compactTablet) - projectedOffset)
+      < Math.abs(tabletLeftPanelStageOffset(nearest, compactTablet) - projectedOffset)
+      ? candidate
+      : nearest
+  ), stages[0])
+}
+
+export function tabletWorkspaceDragMode({
+  dx,
+  propertiesVisible,
+  screenWidth,
+  x0,
+}: {
+  dx: number
+  propertiesVisible: boolean
+  screenWidth: number
+  x0: number
+}): TabletWorkspaceDragMode {
+  if (propertiesVisible && dx > 0) return 'properties'
+  if (!propertiesVisible && dx < 0 && x0 >= screenWidth - tabletPropertiesEdgeWidth) return 'properties'
+  return 'left'
+}
+
+export function tabletPropertiesVisibleAfterDrag({
+  dx,
+  visible,
+  vx,
+}: {
+  dx: number
+  visible: boolean
+  vx: number
+}) {
+  if (Math.abs(vx) >= 0.5 && Math.abs(dx) >= 24) return vx < 0
+  const offset = tabletPropertiesDragOffset({ dx, visible })
+  return offset < desktopPanelParity.inspectorWidth / 2
+}
 
 export function tabletLeftChromeWidth({
   compactTablet,
