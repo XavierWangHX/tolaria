@@ -206,38 +206,35 @@ test.describe('mobile UI lab screenshots', () => {
     })
   })
 
-  test('hides and reveals tablet chrome with horizontal swipe gestures', async ({ page }, testInfo) => {
+  test('drags tablet panels from their content surfaces', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'tablet-landscape', 'Tablet chrome gestures are exercised in the full-width tablet layout.')
 
-    await page.goto('/')
+    await page.goto('/?tabletPanels=all')
 
-    const sidebarTitle = page.getByText('Tolaria Vault')
-    const noteListTitle = page.getByTestId('note-list-toolbar-title')
-    const propertiesTitle = page.getByText('Properties', { exact: true })
+    const viewportWidth = requiredViewportWidth(page)
 
-    await expect(sidebarTitle).toBeVisible()
-    await swipeHorizontally(page, { x: 210, y: 220 }, { x: 90, y: 220 })
-    await expect(sidebarTitle).toBeHidden()
+    await swipeHorizontally(page, { x: 580, y: 220 }, { x: 20, y: 220 })
+    await page.waitForTimeout(500)
+    const editorOnlyBox = await requiredBox(page, 'editor-panel')
+    expect(editorOnlyBox.x).toBeLessThanOrEqual(1)
 
-    await swipeHorizontally(page, { x: 8, y: 220 }, { x: 140, y: 220 })
-    await expect(sidebarTitle).toBeVisible()
+    await page.getByTestId('tablet-editor-chrome-toggle').click()
+    await page.waitForTimeout(500)
+    const restoredSidebar = await requiredBox(page, 'workspace-sidebar-panel')
+    expect(restoredSidebar.x).toBeGreaterThanOrEqual(0)
 
-    await expect(noteListTitle).toBeVisible()
-    await swipeHorizontally(page, { x: 480, y: 220 }, { x: 330, y: 220 })
-    await expect(noteListTitle).toBeHidden()
+    const hiddenProperties = await requiredBox(page, 'tablet-properties-panel-host')
+    expect(hiddenProperties.x).toBeGreaterThanOrEqual(viewportWidth - 1)
 
-    await swipeHorizontally(page, { x: 8, y: 220 }, { x: 160, y: 220 })
-    await expect(noteListTitle).toBeVisible()
+    await page.getByTestId('editor-properties-action').click()
+    await page.waitForTimeout(500)
+    const visibleProperties = await requiredBox(page, 'tablet-properties-panel-host')
+    expect(visibleProperties.x + visibleProperties.width).toBeCloseTo(viewportWidth, 0)
 
-    await expect(propertiesTitle).toBeVisible()
-    await swipeHorizontally(page, { x: 1210, y: 220 }, { x: 1340, y: 220 })
-    await expect(propertiesTitle).toBeHidden()
-
-    const viewport = page.viewportSize()
-    if (!viewport) throw new Error('Expected viewport for tablet gesture test.')
-
-    await swipeHorizontally(page, { x: viewport.width - 8, y: 220 }, { x: viewport.width - 150, y: 220 })
-    await expect(propertiesTitle).toBeVisible()
+    await page.getByTestId('editor-properties-action').click()
+    await page.waitForTimeout(500)
+    const toggledProperties = await requiredBox(page, 'tablet-properties-panel-host')
+    expect(toggledProperties.x).toBeGreaterThanOrEqual(viewportWidth - 1)
   })
 
   for (const scenarioState of tabletScenarioStates) {
@@ -331,4 +328,16 @@ async function swipeHorizontally(
     type: 'touchEnd',
   })
   await client.detach()
+}
+
+async function requiredBox(page: Page, testId: string) {
+  const box = await page.getByTestId(testId).boundingBox()
+  if (!box) throw new Error(`Cannot measure missing ${testId}.`)
+  return box
+}
+
+function requiredViewportWidth(page: Page) {
+  const viewport = page.viewportSize()
+  if (!viewport) throw new Error('Expected viewport for tablet gesture test.')
+  return viewport.width
 }
